@@ -21,3 +21,10 @@ _testmain.go
 
 *.exe
 *.test
+preview
+.DS_Store
+
+# test data
+common/test-data/placeholders/
+tmp/
+*-test.json
