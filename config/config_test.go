@@ -40,6 +40,7 @@ func initTempFileManager(path string) *tempFileManager {
 		"common": {"nodeId": "9D7DB7FC75B4", "placeholderBasePath": "./", "placeholderGroups": {"image": ["jpg"] }},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
 		"imageMagickRenderer": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 123456}},
+		"documentRenderAgent": {"enabled": true, "count": 16, "basePath": "./"},
 		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
 		"assetApi": {"basePath": "./"},
 		"uploader": {"engine": "s3", "s3Key": "foo", "s3Secret": "bar", "s3Host": "baz", "s3Buckets": ["previewa", "previewb"]},

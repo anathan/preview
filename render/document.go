@@ -4,9 +4,11 @@ package render
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/ngerakines/preview/common"
 	"log"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -29,6 +31,7 @@ func NewLibreOfficeConverter(
 	temporaryFileManager common.TemporaryFileManager,
 	downloader common.Downloader,
 	uploader common.Uploader,
+	basePath string,
 	workChannel RenderAgentWorkChannel) Renderer {
 
 	renderer := new(libreOfficeConverter)
@@ -89,6 +92,19 @@ func (renderer *libreOfficeConverter) Dispatch() RenderAgentWorkChannel {
 	return renderer.workChannel
 }
 
+/*
+1. Get the generated asset
+2. Get the source asset
+3. Get the template
+4. Fetch the source asset file
+5. Create a temporary destination directory.
+6. Convert the source asset file into a pdf using the temporary destination directory.
+7. Given a file in that directory exists, determine how many pages it contains.
+8. Create a new source asset record for the pdf.
+9. Upload the new source asset pdf file.
+10. For each page in the pdf, create a generated asset record for each of the default templates.
+11. Update the status of the generated asset as complete.
+*/
 func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 
 	generatedAsset, err := renderer.gasm.FindById(id)
@@ -133,42 +149,84 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 	}
 	defer sourceFile.Release()
 
-	destination := sourceFile.Path() + "-" + template.Id + ".pdf"
+	destination, err := renderer.createTemporaryDestinationDirectory()
+	if err != nil {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
 	destinationTemporaryFile := renderer.temporaryFileManager.Create(destination)
 	defer destinationTemporaryFile.Release()
 
-	size, err := renderer.getSize(template)
-	if err != nil {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineRenderSize), nil}
-		return
-	}
-
-	err = renderer.createPdf(sourceFile.Path(), destination, size)
+	err = renderer.createPdf(sourceFile.Path(), destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
 		return
 	}
 
-	err = renderer.upload(generatedAsset.Location, destination)
+	files, err := renderer.getRenderedFiles(destination)
+	if err != nil {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
+	if len(files) != 1 {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
+
+	pages := 1
+
+	storedFile := "protocol://path/to/new/file"
+	err = renderer.upload(storedFile, files[0])
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotUploadAsset), nil}
 		return
 	}
 
+	// TODO: write this code
+	var pdfFileSize int64 = 1
+
+	pdfSourceAsset := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
+	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(pdfFileSize, 10)})
+	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{storedFile})
+	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"pdf"})
+	// TODO: Add support for the expiration attribute.
+
+	renderer.sasm.Store(pdfSourceAsset)
+	legacyDefaultTemplates, err := renderer.templateManager.FindByIds(common.LegacyDefaultTemplates)
+	if err != nil {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
+
+	// TODO: Have the new source asset and generated assets be created in batch in the storage managers.
+	for page := 0; page < pages; page++ {
+		for _, legacyTemplate := range legacyDefaultTemplates {
+			// TODO: This can be put into a small lookup table create/set at the time of structure init.
+			placeholderSize, err := common.GetFirstAttribute(legacyTemplate, common.TemplateAttributePlaceholderSize)
+			if err != nil {
+				statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+				return
+			}
+			// TODO: Update simple blueprint and image magick render agent to use this url structure.
+			location := fmt.Sprintf("local:///%s/%s/%d", sourceAsset.Id, placeholderSize, page)
+			pdfGeneratedAsset := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, template, location)
+			pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
+			renderer.gasm.Store(pdfGeneratedAsset)
+		}
+	}
+
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, nil}
 }
 
-func ok() {
-}
-
-func (renderer *libreOfficeConverter) createPdf(source, destination string, size int) error {
+func (renderer *libreOfficeConverter) createPdf(source, destination string) error {
 	_, err := exec.LookPath("soffice")
 	if err != nil {
 		log.Println("convert command not found")
 		return err
 	}
 
-	cmd := exec.Command("/Applications/LibreOffice.app/Contents/program/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", "~/Desktop/")
+	// TODO: Make this path configurable.
+	cmd := exec.Command("/Applications/LibreOffice.app/Contents/program/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
 	cmd.Dir = "/Applications/LibreOffice.app/Contents/program"
 	log.Println(cmd)
 
@@ -235,4 +293,12 @@ func (renderer *libreOfficeConverter) commitStatus(id string, existingAttributes
 		}
 	}()
 	return commitChannel
+}
+
+func (renderer *libreOfficeConverter) createTemporaryDestinationDirectory() (string, error) {
+	return "", common.ErrorNotImplemented
+}
+
+func (renderer *libreOfficeConverter) getRenderedFiles(path string) ([]string, error) {
+	return []string{}, common.ErrorNotImplemented
 }

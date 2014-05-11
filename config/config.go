@@ -22,6 +22,8 @@ type AppConfig interface {
 	Storage() StorageAppConfig
 	// ImageMagickRenderer returns ImageMagick render agent configuration.
 	ImageMagickRenderer() ImageMagickRendererAppConfig
+	// DocumentRenderAgent returns Document render agent configuration.
+	DocumentRenderAgent() DocumentRenderAgentAppConfig
 	// SimpleApi returns SimpleBlueprint configuration.
 	SimpleApi() SimpleApiAppConfig
 	AssetApi() AssetApiAppConfig
@@ -50,6 +52,12 @@ type ImageMagickRendererAppConfig interface {
 	Enabled() bool
 	Count() int
 	SupportedFileTypes() map[string]int64
+}
+
+type DocumentRenderAgentAppConfig interface {
+	Enabled() bool
+	Count() int
+	BasePath() string
 }
 
 type SimpleApiAppConfig interface {

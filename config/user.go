@@ -15,6 +15,7 @@ type userAppConfig struct {
 	commonAppConfig              CommonAppConfig
 	storageAppConfig             StorageAppConfig
 	imageMagickRendererAppConfig ImageMagickRendererAppConfig
+	documentRenderAgentAppConfig DocumentRenderAgentAppConfig
 	assetApiAppConfig            AssetApiAppConfig
 	simpleApiAppConfig           SimpleApiAppConfig
 	uploaderAppConfig            UploaderAppConfig
@@ -41,6 +42,12 @@ type userImageMagickRendererAppConfig struct {
 	enabled            bool
 	count              int
 	supportedFileTypes map[string]int64
+}
+
+type userDocumentRenderAgentAppConfig struct {
+	enabled  bool
+	count    int
+	basePath string
 }
 
 type userSimpleApiAppConfig struct {
@@ -93,6 +100,11 @@ func NewUserAppConfig(content []byte) (AppConfig, error) {
 	}
 
 	appConfig.imageMagickRendererAppConfig, err = newUserImageMagickRendererAppConfig(m)
+	if err != nil {
+		return nil, err
+	}
+
+	appConfig.documentRenderAgentAppConfig, err = newUserDocumentRenderAgentAppConfig(m)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +254,32 @@ func newUserImageMagickRendererAppConfig(m map[string]interface{}) (ImageMagickR
 	return config, nil
 }
 
+func newUserDocumentRenderAgentAppConfig(m map[string]interface{}) (DocumentRenderAgentAppConfig, error) {
+	data, err := parseConfigGroup("documentRenderAgent", m)
+	if err != nil {
+		return nil, err
+	}
+
+	config := new(userDocumentRenderAgentAppConfig)
+
+	config.enabled, err = parseBool("documentRenderAgent", "enabled", data)
+	if err != nil {
+		return nil, err
+	}
+
+	config.basePath, err = parseString("documentRenderAgent", "basePath", data)
+	if err != nil {
+		return nil, err
+	}
+
+	config.count, err = parseInt("documentRenderAgent", "count", data)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
 func newUserSimpleApiAppConfig(m map[string]interface{}) (SimpleApiAppConfig, error) {
 	data, err := parseConfigGroup("simpleApi", m)
 	if err != nil {
@@ -356,6 +394,10 @@ func (c *userAppConfig) ImageMagickRenderer() ImageMagickRendererAppConfig {
 	return c.imageMagickRendererAppConfig
 }
 
+func (c *userAppConfig) DocumentRenderAgent() DocumentRenderAgentAppConfig {
+	return c.documentRenderAgentAppConfig
+}
+
 func (c *userAppConfig) SimpleApi() SimpleApiAppConfig {
 	return c.simpleApiAppConfig
 }
@@ -404,6 +446,18 @@ func (c *userImageMagickRendererAppConfig) Count() int {
 
 func (c *userImageMagickRendererAppConfig) SupportedFileTypes() map[string]int64 {
 	return c.supportedFileTypes
+}
+
+func (c *userDocumentRenderAgentAppConfig) Enabled() bool {
+	return c.enabled
+}
+
+func (c *userDocumentRenderAgentAppConfig) Count() int {
+	return c.count
+}
+
+func (c *userDocumentRenderAgentAppConfig) BasePath() string {
+	return c.basePath
 }
 
 func (c *userSimpleApiAppConfig) Enabled() bool {

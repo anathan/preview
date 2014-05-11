@@ -141,6 +141,7 @@ func cassandraConfig(tmpFilePath string) (config.AppConfig, error) {
 		"http": {"listen": ":8081"},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
 		"imageMagickRenderer": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 33554432}},
+		"documentRenderAgent": {"enabled": true, "count": 16,"basePath": "` + tmpFilePath + `"},
 		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
 		"assetApi": {"basePath": "` + tmpFilePath + `"},
 		"uploader": {"engine": "local", "localBasePath": "` + tmpFilePath + `"},

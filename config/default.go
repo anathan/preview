@@ -29,6 +29,11 @@ func NewDefaultAppConfig() (AppConfig, error) {
    "storage":{
       "engine":"memory"
    },
+   "documentRenderAgent":{
+      "enabled":true,
+      "count":16,
+      "basePath":"` + basePath + `"
+   },
    "imageMagickRenderer":{
       "enabled":true,
       "count":16,

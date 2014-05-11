@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-// TODO: Add conditions to use `convert -geometry GEOMETRY -density 200 -colorspace RGB /path/to/pdf +adjoin /destination/dir/test_%0d.jpg` when file type of source asset is pdf.
-
 type imageMagickRenderer struct {
 	sasm                 common.SourceAssetStorageManager
 	gasm                 common.GeneratedAssetStorageManager

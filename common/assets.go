@@ -75,6 +75,8 @@ var (
 
 	// SourceAssetTypeOrigin is a constant that represents origin types for source assets.
 	SourceAssetTypeOrigin = "origin"
+	// SourceAssetTypePdf is a constant that represents a generated PDF type for source assets.
+	SourceAssetTypePdf = "pdf"
 )
 
 // NewSourceAsset creates a new source asset, filling in default values for everything but the id, type and location.
