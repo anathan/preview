@@ -157,6 +157,8 @@ func (renderer *imageMagickRenderer) renderGeneratedAsset(id string) {
 	if fileType == "pdf" {
 		page, _ := renderer.getGeneratedAssetPage(generatedAsset)
 		err = renderer.imageFromPdf(sourceFile.Path(), destination, size, page)
+	} else if fileType == "gif" {
+		err = renderer.firstGifFrame(sourceFile.Path(), destination, size)
 	} else {
 		err = renderer.resize(sourceFile.Path(), destination, size)
 	}
@@ -250,6 +252,29 @@ func (renderer *imageMagickRenderer) imageFromPdf(source, destination string, si
 	}
 
 	cmd := exec.Command("convert", "-colorspace", "RGB", fmt.Sprintf("%s[%d]", source, page), "-resize", strconv.Itoa(size), "+adjoin", destination)
+	log.Println(cmd)
+
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+	log.Println(buf.String())
+
+	return nil
+}
+
+func (renderer *imageMagickRenderer) firstGifFrame(source, destination string, size int) error {
+	_, err := exec.LookPath("convert")
+	if err != nil {
+		log.Println("convert command not found")
+		return err
+	}
+
+	cmd := exec.Command("convert", fmt.Sprintf("%s[0]", source), "-resize", strconv.Itoa(size), destination)
 	log.Println(cmd)
 
 	var buf bytes.Buffer

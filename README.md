@@ -172,6 +172,8 @@ CREATE INDEX IF NOT EXISTS ON source_assets (type);
 
 By default, the imagemagick render agent is enabled.
 
+To support creating images for PDF files, the `gs` application in the ghostscript package is required.
+
 ## Uploader
 
 By default, the "local" uploader is enabled. This uploader engine will simply copy rendered images from the temporary file/directory to the configured base path.
