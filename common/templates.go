@@ -69,8 +69,10 @@ var (
 	TemplateAttributePlaceholderSize = "placeholderSize"
 )
 
-func (template *Template) AddAttribute(name string, value []string) {
-	template.Attributes = append(template.Attributes, Attribute{name, value})
+func (template *Template) AddAttribute(name string, value []string) Attribute {
+	attribute := Attribute{name, value}
+	template.Attributes = append(template.Attributes, attribute)
+	return attribute
 }
 
 func (template *Template) HasAttribute(name string) bool {

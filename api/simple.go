@@ -155,7 +155,7 @@ func (blueprint *simpleBlueprint) handleGeneratePreviewRequest(gprs []*generateP
 			location := fmt.Sprintf("local:///%s/%s", gpr.id, placeholderSize)
 			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			ga.Status = status
-			ga.AddAttribute(common.GeneratedAssetAttributePage, []string{"1"})
+			ga.AddAttribute(common.GeneratedAssetAttributePage, []string{"0"})
 			blueprint.generatedAssetStorageManager.Store(ga)
 		}
 	}

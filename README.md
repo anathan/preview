@@ -224,9 +224,3 @@ Govet is a static code analyzer.
 To determine the size of the project:
 
     $ find . -type f -name '*.go' -exec wc -l {} \; | awk '{total += $1} END {print total}'
-
-# TODO
-
-* Read placeholder image information
-* Test different file types.
-

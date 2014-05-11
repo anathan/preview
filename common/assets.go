@@ -10,7 +10,7 @@ import (
 // Attributed structures have internal attributes that can be manipulated.
 type Attributed interface {
 	// AddAttribute adds key and array of values to the structure.
-	AddAttribute(name string, value []string)
+	AddAttribute(name string, value []string) Attribute
 	// HasAttribute returns true if the structure has a given attribute, false if otherwise.
 	HasAttribute(name string) bool
 	// GetAttribute retuirns the values for the given attribute.
@@ -138,8 +138,10 @@ func (sa *SourceAsset) Serialize() ([]byte, error) {
 	return bytes, nil
 }
 
-func (sa *SourceAsset) AddAttribute(name string, value []string) {
-	sa.Attributes = append(sa.Attributes, Attribute{name, value})
+func (sa *SourceAsset) AddAttribute(name string, value []string) Attribute {
+	attribute := Attribute{name, value}
+	sa.Attributes = append(sa.Attributes, attribute)
+	return attribute
 }
 
 func (sa *SourceAsset) HasAttribute(name string) bool {
