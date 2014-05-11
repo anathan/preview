@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
+	"github.com/ngerakines/preview/render"
 	"github.com/ngerakines/preview/util"
 	"github.com/ngerakines/testutils"
 	"io/ioutil"
@@ -42,14 +43,14 @@ func TestBasicIntegration(t *testing.T) {
 	}
 	defer previewApp.Stop()
 
-	testListener := make(common.RenderStatusChannel)
+	testListener := make(render.RenderStatusChannel)
 	previewApp.rendererManager.AddListener(testListener)
 
 	sourceAssetId := uuid.New()
 
 	func() {
 		res := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/api/v1/preview/"+sourceAssetId, strings.NewReader(composeTextPayload("jpg", fileUrl("../common/test-data", "wallpaper-641916.jpg"), "252990")))
+		req, _ := http.NewRequest("PUT", "/api/v1/preview/"+sourceAssetId, strings.NewReader(composeTextPayload("jpg", fileUrl("../test-data", "wallpaper-641916.jpg"), "252990")))
 		previewApp.martiniClassic.ServeHTTP(res, req)
 
 		if res.Code != 200 {
@@ -136,7 +137,7 @@ func TestBasicIntegration(t *testing.T) {
 
 func cassandraConfig(tmpFilePath string) (config.AppConfig, error) {
 	return config.NewUserAppConfig([]byte(`{
-		"common": {"nodeId": "foo", "placeholderBasePath": "` + filepath.Join(util.Cwd(), "../common/test-data/placeholders/") + `", "placeholderGroups": {"image": ["jpg"]} },
+		"common": {"nodeId": "foo", "placeholderBasePath": "` + filepath.Join(util.Cwd(), "../test-data/placeholders/") + `", "placeholderGroups": {"image": ["jpg"]} },
 		"http": {"listen": ":8081"},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
 		"imageMagickRenderer": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 33554432}},

@@ -1,6 +1,7 @@
-package common
+package render
 
 import (
+	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/ngerakines/testutils"
 	"path/filepath"
@@ -16,22 +17,22 @@ func TestRenderJpegPreview(t *testing.T) {
 	dm := testutils.NewDirectoryManager()
 	defer dm.Close()
 
-	sasm := NewSourceAssetStorageManager()
-	gasm := NewGeneratedAssetStorageManager()
+	sasm := common.NewSourceAssetStorageManager()
+	gasm := common.NewGeneratedAssetStorageManager()
 
-	tm := NewTemplateManager()
-	tfm := NewTemporaryFileManager()
-	downloader := NewDownloader(dm.Path, tfm)
+	tm := common.NewTemplateManager()
+	tfm := common.NewTemporaryFileManager()
+	downloader := common.NewDownloader(dm.Path, tfm)
 	uploader := newMockUploader()
 	rm := NewRendererManager(gasm, tfm)
 	defer rm.Stop()
 
 	rm.AddImageMagickRenderer(sasm, tm, downloader, uploader, 5)
 
-	sourceAsset := NewSourceAsset("101099BE-AF41-4D2D-A385-BFE44CC94B48", SourceAssetTypeOrigin)
-	sourceAsset.AddAttribute(SourceAssetAttributeSize, []string{"12345"})
-	sourceAsset.AddAttribute(SourceAssetAttributeSource, []string{fileUrl("test-data", "wallpaper-641916.jpg")})
-	sourceAsset.AddAttribute(SourceAssetAttributeType, []string{"jpg"})
+	sourceAsset := common.NewSourceAsset("101099BE-AF41-4D2D-A385-BFE44CC94B48", common.SourceAssetTypeOrigin)
+	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{"12345"})
+	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{fileUrl("test-data", "wallpaper-641916.jpg")})
+	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"jpg"})
 
 	err := sasm.Store(sourceAsset)
 	if err != nil {
@@ -39,13 +40,13 @@ func TestRenderJpegPreview(t *testing.T) {
 		return
 	}
 
-	templates, err := tm.FindByIds(LegacyDefaultTemplates)
+	templates, err := tm.FindByIds(common.LegacyDefaultTemplates)
 	if err != nil {
 		t.Errorf("Unexpected error returned: %s", err)
 		return
 	}
 	for _, template := range templates {
-		ga := NewGeneratedAssetFromSourceAsset(sourceAsset, template, "location")
+		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, "location")
 		gasm.Store(ga)
 	}
 
@@ -56,7 +57,7 @@ func TestRenderJpegPreview(t *testing.T) {
 			if err == nil {
 				count := 0
 				for _, generatedAsset := range generatedAssets {
-					if generatedAsset.Status == GeneratedAssetStatusComplete {
+					if generatedAsset.Status == common.GeneratedAssetStatusComplete {
 						count = count + 1
 					}
 				}
@@ -79,5 +80,16 @@ func TestRenderJpegPreview(t *testing.T) {
 }
 
 func fileUrl(dir, file string) string {
-	return "file://" + filepath.Join(util.Cwd(), dir, file)
+	return "file://" + filepath.Join(util.Cwd(), "../", dir, file)
+}
+
+type mockUploader struct {
+}
+
+func (uploader *mockUploader) Upload(destination string, path string) error {
+	return nil
+}
+
+func newMockUploader() common.Uploader {
+	return new(mockUploader)
 }

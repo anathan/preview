@@ -5,13 +5,14 @@ import (
 	"github.com/ngerakines/preview/api"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
+	"github.com/ngerakines/preview/render"
 	"log"
 	"net/http"
 )
 
 type AppContext struct {
 	appConfig                    config.AppConfig
-	rendererManager              *common.RendererManager
+	rendererManager              *render.RendererManager
 	sourceAssetStorageManager    common.SourceAssetStorageManager
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
@@ -144,7 +145,7 @@ func (app *AppContext) initStorage() error {
 func (app *AppContext) initRenderers() error {
 	// NKG: This is where the RendererManager is constructed and renderers
 	// are configured and enabled through it.
-	app.rendererManager = common.NewRendererManager(app.generatedAssetStorageManager, app.temporaryFileManager)
+	app.rendererManager = render.NewRendererManager(app.generatedAssetStorageManager, app.temporaryFileManager)
 	if app.appConfig.ImageMagickRenderer().Enabled() {
 		for i := 0; i < app.appConfig.ImageMagickRenderer().Count(); i++ {
 			app.rendererManager.AddImageMagickRenderer(app.sourceAssetStorageManager, app.templateManager, app.downloader, app.uploader, 5)
