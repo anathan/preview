@@ -3,7 +3,6 @@ package api
 import (
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
-	"github.com/ngerakines/preview/config"
 	"github.com/ngerakines/preview/util"
 	"net/http"
 	"path/filepath"
@@ -16,7 +15,7 @@ type assetBlueprint struct {
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
 	placeholderManager           common.PlaceholderManager
-	localBasePath                string
+	localAssetStoragePath        string
 	templatesBySize              map[string]string
 }
 
@@ -30,7 +29,7 @@ var (
 
 // NewAssetBlueprint creates, configures and returns a new blueprint. This structure contains the state and HTTP controllers used to serve assets.
 func NewAssetBlueprint(
-	appConfig config.AppConfig,
+	localAssetStoragePath string,
 	sourceAssetStorageManager common.SourceAssetStorageManager,
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -42,9 +41,9 @@ func NewAssetBlueprint(
 	blueprint.generatedAssetStorageManager = generatedAssetStorageManager
 	blueprint.templateManager = templateManager
 	blueprint.placeholderManager = placeholderManager
+	blueprint.localAssetStoragePath = localAssetStoragePath
 
 	var err error
-	blueprint.localBasePath = appConfig.AssetApi().BasePath()
 	if err != nil {
 		panic(err)
 	}
@@ -110,7 +109,7 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize string) (asset
 		for _, generatedAsset := range generatedAssets {
 			if generatedAsset.TemplateId == templateId {
 				if strings.HasPrefix(generatedAsset.Location, "local://") {
-					fullPath := filepath.Join(blueprint.localBasePath, fileId, placeholderSize)
+					fullPath := filepath.Join(blueprint.localAssetStoragePath, fileId, placeholderSize)
 					if util.CanLoadFile(fullPath) {
 						return assetActionServeFile, fullPath
 					}

@@ -10,21 +10,23 @@ import (
 )
 
 type userAppConfig struct {
-	source                       string
-	httpAppConfig                HttpAppConfig
-	commonAppConfig              CommonAppConfig
-	storageAppConfig             StorageAppConfig
-	imageMagickRendererAppConfig ImageMagickRendererAppConfig
-	assetApiAppConfig            AssetApiAppConfig
-	simpleApiAppConfig           SimpleApiAppConfig
-	uploaderAppConfig            UploaderAppConfig
-	downloaderAppConfig          DownloaderAppConfig
+	source                          string
+	httpAppConfig                   HttpAppConfig
+	commonAppConfig                 CommonAppConfig
+	storageAppConfig                StorageAppConfig
+	imageMagickRenderAgentAppConfig ImageMagickRenderAgentAppConfig
+	documentRenderAgentAppConfig    DocumentRenderAgentAppConfig
+	assetApiAppConfig               AssetApiAppConfig
+	simpleApiAppConfig              SimpleApiAppConfig
+	uploaderAppConfig               UploaderAppConfig
+	downloaderAppConfig             DownloaderAppConfig
 }
 
 type userCommonAppConfig struct {
-	placeholderBasePath string
-	placeholderGroups   map[string][]string
-	nodeId              string
+	placeholderBasePath   string
+	placeholderGroups     map[string][]string
+	nodeId                string
+	localAssetStoragePath string
 }
 
 type userHttpAppConfig struct {
@@ -37,10 +39,16 @@ type userStorageAppConfig struct {
 	cassandraKeyspace string
 }
 
-type userImageMagickRendererAppConfig struct {
+type userImageMagickRenderAgentAppConfig struct {
 	enabled            bool
 	count              int
 	supportedFileTypes map[string]int64
+}
+
+type userDocumentRenderAgentAppConfig struct {
+	enabled  bool
+	count    int
+	basePath string
 }
 
 type userSimpleApiAppConfig struct {
@@ -49,16 +57,15 @@ type userSimpleApiAppConfig struct {
 }
 
 type userAssetApiAppConfig struct {
-	basePath string
+	enabled bool
 }
 
 type userUploaderAppConfig struct {
-	engine        string
-	s3Key         string
-	s3Secret      string
-	s3Host        string
-	localBasePath string
-	s3Buckets     []string
+	engine    string
+	s3Key     string
+	s3Secret  string
+	s3Host    string
+	s3Buckets []string
 }
 
 type userDownloaderAppConfig struct {
@@ -92,7 +99,12 @@ func NewUserAppConfig(content []byte) (AppConfig, error) {
 		return nil, err
 	}
 
-	appConfig.imageMagickRendererAppConfig, err = newUserImageMagickRendererAppConfig(m)
+	appConfig.imageMagickRenderAgentAppConfig, err = newUserImageMagickRenderAgentAppConfig(m)
+	if err != nil {
+		return nil, err
+	}
+
+	appConfig.documentRenderAgentAppConfig, err = newUserDocumentRenderAgentAppConfig(m)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +155,11 @@ func newUserCommonAppConfig(m map[string]interface{}) (CommonAppConfig, error) {
 	}
 
 	config := new(userCommonAppConfig)
+
+	config.localAssetStoragePath, err = parseString("common", "localAssetStoragePath", data)
+	if err != nil {
+		return nil, err
+	}
 
 	config.placeholderBasePath, err = parseString("common", "placeholderBasePath", data)
 	if err != nil {
@@ -204,30 +221,30 @@ func newUserStorageAppConfig(m map[string]interface{}) (StorageAppConfig, error)
 	return config, nil
 }
 
-func newUserImageMagickRendererAppConfig(m map[string]interface{}) (ImageMagickRendererAppConfig, error) {
-	data, err := parseConfigGroup("imageMagickRenderer", m)
+func newUserImageMagickRenderAgentAppConfig(m map[string]interface{}) (ImageMagickRenderAgentAppConfig, error) {
+	data, err := parseConfigGroup("imageMagickRenderAgent", m)
 	if err != nil {
 		return nil, err
 	}
-	config := new(userImageMagickRendererAppConfig)
+	config := new(userImageMagickRenderAgentAppConfig)
 
-	config.enabled, err = parseBool("imageMagickRenderer", "enabled", data)
+	config.enabled, err = parseBool("imageMagickRenderAgent", "enabled", data)
 	if err != nil {
 		return nil, err
 	}
-	config.count, err = parseInt("imageMagickRenderer", "count", data)
+	config.count, err = parseInt("imageMagickRenderAgent", "count", data)
 	if err != nil {
 		return nil, err
 	}
 
 	supportedFileTypesValue, hasKey := data["supportedFileTypes"]
 	if !hasKey {
-		return nil, appConfigError{"Invalid imageMagickRenderer config: supportedFileTypes attribute missing"}
+		return nil, appConfigError{"Invalid imageMagickRenderAgent config: supportedFileTypes attribute missing"}
 	}
 	supportedFileTypes, ok := supportedFileTypesValue.(map[string]interface{})
 	if !ok {
 		log.Println(reflect.TypeOf(supportedFileTypesValue).Kind())
-		return nil, appConfigError{"Invalid imageMagickRenderer config: supportedFileTypes attribute not a map of strings to ints"}
+		return nil, appConfigError{"Invalid imageMagickRenderAgent config: supportedFileTypes attribute not a map of strings to ints"}
 	}
 	config.supportedFileTypes = make(map[string]int64)
 	for fileType, fileSize := range supportedFileTypes {
@@ -237,6 +254,32 @@ func newUserImageMagickRendererAppConfig(m map[string]interface{}) (ImageMagickR
 		} else {
 			config.supportedFileTypes[fileType] = int64(val)
 		}
+	}
+
+	return config, nil
+}
+
+func newUserDocumentRenderAgentAppConfig(m map[string]interface{}) (DocumentRenderAgentAppConfig, error) {
+	data, err := parseConfigGroup("documentRenderAgent", m)
+	if err != nil {
+		return nil, err
+	}
+
+	config := new(userDocumentRenderAgentAppConfig)
+
+	config.enabled, err = parseBool("documentRenderAgent", "enabled", data)
+	if err != nil {
+		return nil, err
+	}
+
+	config.basePath, err = parseString("documentRenderAgent", "basePath", data)
+	if err != nil {
+		return nil, err
+	}
+
+	config.count, err = parseInt("documentRenderAgent", "count", data)
+	if err != nil {
+		return nil, err
 	}
 
 	return config, nil
@@ -271,7 +314,7 @@ func newUserAssetApiAppConfig(m map[string]interface{}) (AssetApiAppConfig, erro
 
 	config := new(userAssetApiAppConfig)
 
-	config.basePath, err = parseString("assetApi", "basePath", data)
+	config.enabled, err = parseBool("assetApi", "enabled", data)
 	if err != nil {
 		return nil, err
 	}
@@ -306,12 +349,6 @@ func newUserUploaderAppConfig(m map[string]interface{}) (UploaderAppConfig, erro
 			return nil, err
 		}
 		config.s3Buckets, err = parseStringArray("uploader", "s3Buckets", data)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if config.engine == "local" {
-		config.localBasePath, err = parseString("uploader", "localBasePath", data)
 		if err != nil {
 			return nil, err
 		}
@@ -352,8 +389,12 @@ func (c *userAppConfig) Storage() StorageAppConfig {
 	return c.storageAppConfig
 }
 
-func (c *userAppConfig) ImageMagickRenderer() ImageMagickRendererAppConfig {
-	return c.imageMagickRendererAppConfig
+func (c *userAppConfig) ImageMagickRenderAgent() ImageMagickRenderAgentAppConfig {
+	return c.imageMagickRenderAgentAppConfig
+}
+
+func (c *userAppConfig) DocumentRenderAgent() DocumentRenderAgentAppConfig {
+	return c.documentRenderAgentAppConfig
 }
 
 func (c *userAppConfig) SimpleApi() SimpleApiAppConfig {
@@ -394,16 +435,28 @@ func (c *userStorageAppConfig) CassandraKeyspace() (string, error) {
 	return "", appConfigError{"Cassandra storage engine is not enabled."}
 }
 
-func (c *userImageMagickRendererAppConfig) Enabled() bool {
+func (c *userImageMagickRenderAgentAppConfig) Enabled() bool {
 	return c.enabled
 }
 
-func (c *userImageMagickRendererAppConfig) Count() int {
+func (c *userImageMagickRenderAgentAppConfig) Count() int {
 	return c.count
 }
 
-func (c *userImageMagickRendererAppConfig) SupportedFileTypes() map[string]int64 {
+func (c *userImageMagickRenderAgentAppConfig) SupportedFileTypes() map[string]int64 {
 	return c.supportedFileTypes
+}
+
+func (c *userDocumentRenderAgentAppConfig) Enabled() bool {
+	return c.enabled
+}
+
+func (c *userDocumentRenderAgentAppConfig) Count() int {
+	return c.count
+}
+
+func (c *userDocumentRenderAgentAppConfig) BasePath() string {
+	return c.basePath
 }
 
 func (c *userSimpleApiAppConfig) Enabled() bool {
@@ -414,8 +467,8 @@ func (c *userSimpleApiAppConfig) EdgeBaseUrl() string {
 	return c.edgeBaseUrl
 }
 
-func (c *userAssetApiAppConfig) BasePath() string {
-	return c.basePath
+func (c *userAssetApiAppConfig) Enabled() bool {
+	return c.enabled
 }
 
 func (c *userUploaderAppConfig) Engine() string {
@@ -450,19 +503,16 @@ func (c *userUploaderAppConfig) S3Buckets() ([]string, error) {
 	return nil, appConfigError{"S3 uploader engine is not enabled."}
 }
 
-func (c *userUploaderAppConfig) LocalBasePath() (string, error) {
-	if c.engine == "local" {
-		return c.localBasePath, nil
-	}
-	return "", appConfigError{"local uploader engine is not enabled."}
-}
-
 func (c *userDownloaderAppConfig) BasePath() string {
 	return c.basePath
 }
 
 func (c *userCommonAppConfig) NodeId() string {
 	return c.nodeId
+}
+
+func (c *userCommonAppConfig) LocalAssetStoragePath() string {
+	return c.localAssetStoragePath
 }
 
 func (c *userCommonAppConfig) PlaceholderBasePath() string {

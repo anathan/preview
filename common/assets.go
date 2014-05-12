@@ -10,7 +10,7 @@ import (
 // Attributed structures have internal attributes that can be manipulated.
 type Attributed interface {
 	// AddAttribute adds key and array of values to the structure.
-	AddAttribute(name string, value []string)
+	AddAttribute(name string, value []string) Attribute
 	// HasAttribute returns true if the structure has a given attribute, false if otherwise.
 	HasAttribute(name string) bool
 	// GetAttribute retuirns the values for the given attribute.
@@ -69,12 +69,16 @@ var (
 	SourceAssetAttributeType = "type"
 	// SourceAssetAttributeSize is a constant for the size attribute that can be set for source assets.
 	SourceAssetAttributeSize = "size"
+	// SourceAssetAttributePages is a constant for the pages attribute that can be set for source assets.
+	SourceAssetAttributePages = "pages"
 
 	// GeneratedAssetAttributePage is a constant for the page attribute that can be set for generated assets.
 	GeneratedAssetAttributePage = "page"
 
 	// SourceAssetTypeOrigin is a constant that represents origin types for source assets.
 	SourceAssetTypeOrigin = "origin"
+	// SourceAssetTypePdf is a constant that represents a generated PDF type for source assets.
+	SourceAssetTypePdf = "pdf"
 )
 
 // NewSourceAsset creates a new source asset, filling in default values for everything but the id, type and location.
@@ -138,8 +142,10 @@ func (sa *SourceAsset) Serialize() ([]byte, error) {
 	return bytes, nil
 }
 
-func (sa *SourceAsset) AddAttribute(name string, value []string) {
-	sa.Attributes = append(sa.Attributes, Attribute{name, value})
+func (sa *SourceAsset) AddAttribute(name string, value []string) Attribute {
+	attribute := Attribute{name, value}
+	sa.Attributes = append(sa.Attributes, attribute)
+	return attribute
 }
 
 func (sa *SourceAsset) HasAttribute(name string) bool {

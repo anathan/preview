@@ -1,6 +1,7 @@
 package common
 
 import (
+	_ "github.com/ngerakines/testutils"
 	"testing"
 )
 

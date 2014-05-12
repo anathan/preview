@@ -37,11 +37,12 @@ func initTempFileManager(path string) *tempFileManager {
 	fm.files = make(map[string]string)
 	fm.initFile("basic", `{
 		"http": {"listen": ":8081"},
-		"common": {"nodeId": "9D7DB7FC75B4", "placeholderBasePath": "./", "placeholderGroups": {"image": ["jpg"] }},
+		"common": {"nodeId": "9D7DB7FC75B4", "placeholderBasePath": "./", "placeholderGroups": {"image": ["jpg"]}, "localAssetStoragePath":"./"},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
-		"imageMagickRenderer": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 123456}},
+		"imageMagickRenderAgent": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 123456}},
+		"documentRenderAgent": {"enabled": true, "count": 16, "basePath": "./"},
 		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
-		"assetApi": {"basePath": "./"},
+		"assetApi": {"basePath": "./", "enabled": true},
 		"uploader": {"engine": "s3", "s3Key": "foo", "s3Secret": "bar", "s3Host": "baz", "s3Buckets": ["previewa", "previewb"]},
 		"downloader": {"basePath": "./"}
 		}`)
@@ -60,12 +61,11 @@ func TestDefaultConfig(t *testing.T) {
 
 	if appConfig.Http().Listen() != ":8080" {
 		t.Error("Invalid default for appConfig.Http().Listen()", appConfig.Http().Listen())
+		return
 	}
 	if appConfig.Storage().Engine() != "memory" {
 		t.Error("Invalid default for appConfig.Storage().Engine()", appConfig.Storage().Engine())
-	}
-	if appConfig.ImageMagickRenderer().Enabled() != true {
-		t.Error("Invalid default for appConfig.ImageMagickRenderer().Enabled()", appConfig.ImageMagickRenderer().Enabled())
+		return
 	}
 }
 
@@ -97,14 +97,14 @@ func TestBasicConfig(t *testing.T) {
 		t.Error("appConfig.Storage().CassandraNodes()", cassandraNodes)
 	}
 
-	if appConfig.ImageMagickRenderer().Enabled() != true {
-		t.Error("Invalid default for appConfig.ImageMagickRenderer().Enabled()", appConfig.ImageMagickRenderer().Enabled())
+	if appConfig.ImageMagickRenderAgent().Enabled() != true {
+		t.Error("Invalid default for appConfig.ImageMagickRenderAgent().Enabled()", appConfig.ImageMagickRenderAgent().Enabled())
 	}
-	if len(appConfig.ImageMagickRenderer().SupportedFileTypes()) != 1 {
-		t.Error("Invalid count for appConfig.ImageMagickRenderer().SupportedFileTypes()", len(appConfig.ImageMagickRenderer().SupportedFileTypes()))
+	if len(appConfig.ImageMagickRenderAgent().SupportedFileTypes()) != 1 {
+		t.Error("Invalid count for appConfig.ImageMagickRenderAgent().SupportedFileTypes()", len(appConfig.ImageMagickRenderAgent().SupportedFileTypes()))
 	}
-	if appConfig.ImageMagickRenderer().SupportedFileTypes()["jpg"] != 123456 {
-		t.Error("Invalid default for appConfig.ImageMagickRenderer().SupportedFileTypes()[\"jpg\"]", appConfig.ImageMagickRenderer().SupportedFileTypes()["jpg"])
+	if appConfig.ImageMagickRenderAgent().SupportedFileTypes()["jpg"] != 123456 {
+		t.Error("Invalid default for appConfig.ImageMagickRenderAgent().SupportedFileTypes()[\"jpg\"]", appConfig.ImageMagickRenderAgent().SupportedFileTypes()["jpg"])
 	}
 
 	if appConfig.SimpleApi().Enabled() != true {

@@ -25,6 +25,6 @@ preview
 .DS_Store
 
 # test data
-common/test-data/placeholders/
+test-data/placeholders/
 tmp/
 *-test.json

@@ -21,7 +21,9 @@ type AppConfig interface {
 	// Storage returns storage configuration.
 	Storage() StorageAppConfig
 	// ImageMagickRenderer returns ImageMagick render agent configuration.
-	ImageMagickRenderer() ImageMagickRendererAppConfig
+	ImageMagickRenderAgent() ImageMagickRenderAgentAppConfig
+	// DocumentRenderAgent returns Document render agent configuration.
+	DocumentRenderAgent() DocumentRenderAgentAppConfig
 	// SimpleApi returns SimpleBlueprint configuration.
 	SimpleApi() SimpleApiAppConfig
 	AssetApi() AssetApiAppConfig
@@ -33,6 +35,7 @@ type AppConfig interface {
 type CommonAppConfig interface {
 	PlaceholderBasePath() string
 	PlaceholderGroups() map[string][]string
+	LocalAssetStoragePath() string
 	NodeId() string
 }
 
@@ -46,10 +49,16 @@ type StorageAppConfig interface {
 	CassandraKeyspace() (string, error)
 }
 
-type ImageMagickRendererAppConfig interface {
+type ImageMagickRenderAgentAppConfig interface {
 	Enabled() bool
 	Count() int
 	SupportedFileTypes() map[string]int64
+}
+
+type DocumentRenderAgentAppConfig interface {
+	Enabled() bool
+	Count() int
+	BasePath() string
 }
 
 type SimpleApiAppConfig interface {
@@ -58,7 +67,7 @@ type SimpleApiAppConfig interface {
 }
 
 type AssetApiAppConfig interface {
-	BasePath() string
+	Enabled() bool
 }
 
 type UploaderAppConfig interface {
@@ -67,7 +76,6 @@ type UploaderAppConfig interface {
 	S3Secret() (string, error)
 	S3Host() (string, error)
 	S3Buckets() ([]string, error)
-	LocalBasePath() (string, error)
 }
 
 type DownloaderAppConfig interface {

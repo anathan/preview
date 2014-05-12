@@ -59,6 +59,16 @@ var (
 		},
 	}
 
+	DocumentConversionTemplate = &Template{
+		"9B17C6CE-7B09-4FD5-92AD-D85DD218D6D7",
+		RenderAgentDocument,
+		"A907",
+		[]Attribute{
+			Attribute{TemplateAttributeOutput, []string{"pdf"}},
+		},
+	}
+	DocumentConversionTemplateId = "9B17C6CE-7B09-4FD5-92AD-D85DD218D6D7"
+
 	// TemplateAttributeHeight is a constant for the height attribute that can be set for templates.
 	TemplateAttributeHeight = "height"
 	// TemplateAttributeWidth is a constant for the width attribute that can be set for templates.
@@ -69,8 +79,10 @@ var (
 	TemplateAttributePlaceholderSize = "placeholderSize"
 )
 
-func (template *Template) AddAttribute(name string, value []string) {
-	template.Attributes = append(template.Attributes, Attribute{name, value})
+func (template *Template) AddAttribute(name string, value []string) Attribute {
+	attribute := Attribute{name, value}
+	template.Attributes = append(template.Attributes, attribute)
+	return attribute
 }
 
 func (template *Template) HasAttribute(name string) bool {

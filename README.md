@@ -29,7 +29,8 @@ The configuration object has the following top level sections:
 * common
 * http
 * storage
-* imageMagickRenderer
+* imageMagickRenderAgent
+* documentRenderAgent
 * simpleApi
 * assetApi
 * uploader
@@ -40,6 +41,7 @@ The "common" group has the following keys:
 * "nodeId" - The unique identifier of the preview instance.
 * "placeholderBasePath" - The directory that contains placeholder image information.
 * "placeholderGroups" - A map of grouped types of file types to groups used to determine the availability of file types when displaying placeholder images.
+* "localAssetStoragePath" - The location of locally stored assets.
 
 The "http" group has the following keys:
 
@@ -51,7 +53,7 @@ The "storage" group has the following keys:
 * "cassandraNodes" - An array of strings representing cassandra nodes to interact with. Only available when the engine is "cassandra".
 * "cassandraKeyspace" - The cassandra keyspace that queries are executed against. Only available when the engine is "cassandra".
 
-The "imageMagickRenderer" group has the following keys:
+The "imageMagickRenderAgent" group has the following keys:
 
 * "enabled" - Used to determine if the image magick rendering agent should be started with the application.
 * "count" - The number of agents to run concurrently.
@@ -64,7 +66,7 @@ The "simpleApi" group has the following keys:
 
 The "assetApi" group has the following keys:
 
-* "basePath" - The directory that local renders are stored.
+* "enabled" - If enabled, the simple API will be available with the "/asset" base URL on the listen port.
 
 The "uploader" group has the following keys:
 
@@ -73,7 +75,6 @@ The "uploader" group has the following keys:
 * "s3Secret" - The AWS secret to use when uploading rendered images to S3. Only available when the engine is "s3".
 * "s3Buckets" - A list of buckets used to distribute rendered images to when uploading rendered images to S3. Only available when the engine is "s3".
 * "s3Host" - The host and base URL used to submit requests to when uploading rendered images to S3. Only available when the engine is "s3".
-* "localBasePath" - The base directory to copy local renders to. Only available when the engine is "local".
 
 The "downloader" group has the following keys:
 
@@ -85,12 +86,23 @@ By default, the application will use the following configuration json:
 
 ```json
 {
-   "common": {
-      "placeholderBasePath":"BASEPATH",
-      "placeholderGroups": {
-         "image": ["jpg", "jpeg", "png", "gif"]
+   "common":{
+      "placeholderBasePath":"/var/preview/placeholders",
+      "placeholderGroups":{
+         "image":[
+            "jpg",
+            "jpeg",
+            "png",
+            "gif"
+         ],
+         "document":[
+            "pdf",
+            "doc",
+            "docx"
+         ]
       },
-      "nodeId": "E876F147E331"
+      "localAssetStoragePath":"/var/preview/assets",
+      "nodeId":"E876F147E331"
    },
    "http":{
       "listen":":8080"
@@ -98,13 +110,25 @@ By default, the application will use the following configuration json:
    "storage":{
       "engine":"memory"
    },
-   "imageMagickRenderer":{
+   "documentRenderAgent":{
+      "enabled":true,
+      "count":16,
+      "basePath":"/var/preview/tmp/document",
+      "supportedFileTypes":{
+         "doc":33554432,
+         "docx":33554432,
+         "ppt":33554432,
+      }
+   },
+   "imageMagickRenderAgent":{
       "enabled":true,
       "count":16,
       "supportedFileTypes":{
          "jpg":33554432,
          "jpeg":33554432,
-         "png":33554432
+         "png":33554432,
+         "gif":33554432,
+         "pdf":33554432
       }
    },
    "simpleApi":{
@@ -112,14 +136,13 @@ By default, the application will use the following configuration json:
       "edgeBaseUrl":"http://localhost:8080"
    },
    "assetApi":{
-      "basePath":"BASEPATH"
+      "enabled":true
    },
    "uploader":{
-      "engine":"local",
-      "localBasePath":"BASEPATH"
+      "engine":"local"
    },
    "downloader":{
-      "basePath":"BASEPATH"
+      "basePath":"/var/preview/tmp/download"
    }
 }
 ```
@@ -171,6 +194,19 @@ CREATE INDEX IF NOT EXISTS ON source_assets (type);
 ## ImageMagick Render Agent
 
 By default, the imagemagick render agent is enabled.
+
+To support creating images for PDF files, the `gs` application in the ghostscript package is required.
+
+## Document Render Agent
+
+By default, the document render agent is enabled.
+
+This render agent will attempt to convert documents to PDF files to then have images generated from the PDF files.
+
+This render agent requires the following executables be available on the path:
+
+* soffice
+* pdfinfo
 
 ## Uploader
 
@@ -224,9 +260,3 @@ Govet is a static code analyzer.
 To determine the size of the project:
 
     $ find . -type f -name '*.go' -exec wc -l {} \; | awk '{total += $1} END {print total}'
-
-# TODO
-
-* Read placeholder image information
-* Test different file types.
-

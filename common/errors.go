@@ -32,6 +32,7 @@ var (
 	ErrorMissingFieldType                = codederror.NewCodedError([]string{"PRV", "COM"}, 25)
 	ErrorMissingFieldUrl                 = codederror.NewCodedError([]string{"PRV", "COM"}, 26)
 	ErrorMissingFieldSize                = codederror.NewCodedError([]string{"PRV", "COM"}, 27)
+	ErrorCouldNotDetermineFileType       = codederror.NewCodedError([]string{"PRV", "COM"}, 28)
 
 	AllErrors = []*codederror.CodedError{
 		ErrorNotImplemented,
