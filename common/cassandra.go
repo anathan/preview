@@ -138,7 +138,7 @@ func (gasm *cassandraGeneratedAssetStorageManager) Store(generatedAsset *Generat
 
 	batch := gasm.cassandraManager.Session().NewBatch(gocql.UnloggedBatch)
 	batch.Query(`INSERT INTO `+gasm.keyspace+`.generated_assets (id, source, status, template_id, message) VALUES (?, ?, ?, ?, ?)`,
-		generatedAsset.Id, generatedAsset.SourceAssetId+generatedAsset.SourceAssetType, generatedAsset.Status, generatedAsset.TemplateId, payload)
+		generatedAsset.Id, generatedAsset.SourceAssetId, generatedAsset.Status, generatedAsset.TemplateId, payload)
 
 	if generatedAsset.Status == GeneratedAssetStatusWaiting {
 		templateGroup, err := gasm.templateGroup(generatedAsset.TemplateId)
@@ -218,7 +218,7 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindByIds(ids []string) ([]*G
 func (gasm *cassandraGeneratedAssetStorageManager) FindBySourceAssetId(id string) ([]*GeneratedAsset, error) {
 	results := make([]*GeneratedAsset, 0, 0)
 
-	iter := gasm.cassandraManager.Session().Query(`SELECT id, message FROM `+gasm.keyspace+`.generated_assets WHERE source = ?`, id+"origin").Consistency(gocql.One).Iter()
+	iter := gasm.cassandraManager.Session().Query(`SELECT id, message FROM `+gasm.keyspace+`.generated_assets WHERE source = ?`, id).Consistency(gocql.One).Iter()
 	var generatedAssetId string
 	var message []byte
 	for iter.Scan(&generatedAssetId, &message) {

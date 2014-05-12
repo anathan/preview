@@ -262,7 +262,7 @@ func (renderAgent *documentRenderAgent) createPdf(source, destination string) er
 	return nil
 }
 
-var pdfPageCount = regexp.MustCompile(`Pages:\s+(\d)`)
+var pdfPageCount = regexp.MustCompile(`Pages:\s+(\d+)`)
 
 // pdfinfo ~/Desktop/ChefConf2014schedule.pdf
 func (renderAgent *documentRenderAgent) getPdfPageCount(file string) (int, error) {

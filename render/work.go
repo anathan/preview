@@ -67,20 +67,24 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 	}
 	for _, template := range templates {
 		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
-		if err != nil {
-			panic(err)
+		if err == nil {
+			location := fmt.Sprintf("local:///%s/%s/0", sourceAssetId, placeholderSize)
+			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			ga.Status = status
+			agentManager.generatedAssetStorageManager.Store(ga)
+		} else {
+			location := fmt.Sprintf("local:///%s/pdf", sourceAssetId)
+			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			ga.Status = status
+			agentManager.generatedAssetStorageManager.Store(ga)
 		}
-		location := fmt.Sprintf("local:///%s/%s", sourceAssetId, placeholderSize)
-		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
-		ga.Status = status
-		agentManager.generatedAssetStorageManager.Store(ga)
 	}
 }
 
 // TODO: Write this code.
 func (agentManager *RenderAgentManager) whichRenderAgent(fileType string) ([]*common.Template, string, error) {
 	var templateIds []string
-	if fileType == "doc" {
+	if fileType == "doc" || fileType == "docx" || fileType == "pptx" {
 		templateIds = []string{common.DocumentConversionTemplateId}
 	} else {
 		templateIds = common.LegacyDefaultTemplates
