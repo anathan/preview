@@ -2,6 +2,7 @@ package render
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"fmt"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/ngerakines/testutils"
@@ -18,7 +19,7 @@ import (
 // TODO: Write test for PDF with more than 1 page.
 // TODO: Write test for animated gif.
 
-func aTestRenderJpegPreview(t *testing.T) {
+func TestRenderJpegPreview(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Short Tests Only: TestRenderJpegPreview")
 		return
@@ -53,46 +54,11 @@ func aTestRenderJpegPreview(t *testing.T) {
 		return
 	}
 	for _, template := range templates {
-		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, "location")
-		gasm.Store(ga)
-	}
-	if assertGeneratedAssetCount(sourceAssetId, gasm, common.GeneratedAssetStatusComplete, 4) {
-		t.Errorf("Could not verify that %d generated assets had status '%s' for source asset '%s'", 4, common.GeneratedAssetStatusComplete, sourceAssetId)
-		return
-	}
-}
-
-func aTestRenderPdfPreview(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Short Tests Only: TestRenderPdfPreview")
-		return
-	}
-
-	dm := testutils.NewDirectoryManager()
-	defer dm.Close()
-
-	rm, sasm, gasm, tm := setupTest(dm.Path)
-	defer rm.Stop()
-
-	sourceAssetId := uuid.New()
-	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
-	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{"12345"})
-	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{fileUrl("test-data", "ChefConf2014schedule.pdf")})
-	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"pdf"})
-
-	err := sasm.Store(sourceAsset)
-	if err != nil {
-		t.Errorf("Unexpected error returned: %s", err)
-		return
-	}
-
-	templates, err := tm.FindByIds(common.LegacyDefaultTemplates)
-	if err != nil {
-		t.Errorf("Unexpected error returned: %s", err)
-		return
-	}
-	for _, template := range templates {
-		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, "location")
+		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
+		if err != nil {
+			panic(err)
+		}
+		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, fmt.Sprintf("local:///%s/%s", sourceAssetId, placeholderSize))
 		gasm.Store(ga)
 	}
 	if assertGeneratedAssetCount(sourceAssetId, gasm, common.GeneratedAssetStatusComplete, 4) {
