@@ -148,7 +148,7 @@ func (app *AppContext) initRenderers() error {
 	app.rendererManager = render.NewRendererManager(app.generatedAssetStorageManager, app.temporaryFileManager)
 	if app.appConfig.ImageMagickRenderer().Enabled() {
 		for i := 0; i < app.appConfig.ImageMagickRenderer().Count(); i++ {
-			app.rendererManager.AddImageMagickRenderer(app.sourceAssetStorageManager, app.templateManager, app.downloader, app.uploader, 5)
+			app.rendererManager.AddImageMagickRenderAgent(app.sourceAssetStorageManager, app.templateManager, app.downloader, app.uploader, 5)
 		}
 	}
 	return nil

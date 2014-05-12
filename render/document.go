@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type libreOfficeConverter struct {
+type documentRenderAgent struct {
 	sasm                 common.SourceAssetStorageManager
 	gasm                 common.GeneratedAssetStorageManager
 	templateManager      common.TemplateManager
@@ -24,7 +24,7 @@ type libreOfficeConverter struct {
 	stop                 chan (chan bool)
 }
 
-func NewLibreOfficeConverter(
+func newDocumentRenderAgent(
 	sasm common.SourceAssetStorageManager,
 	gasm common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -32,28 +32,28 @@ func NewLibreOfficeConverter(
 	downloader common.Downloader,
 	uploader common.Uploader,
 	basePath string,
-	workChannel RenderAgentWorkChannel) Renderer {
+	workChannel RenderAgentWorkChannel) RenderAgent {
 
-	renderer := new(libreOfficeConverter)
-	renderer.sasm = sasm
-	renderer.gasm = gasm
-	renderer.templateManager = templateManager
-	renderer.temporaryFileManager = temporaryFileManager
-	renderer.downloader = downloader
-	renderer.uploader = uploader
-	renderer.workChannel = workChannel
-	renderer.statusListeners = make([]RenderStatusChannel, 0, 0)
-	renderer.stop = make(chan (chan bool))
+	renderAgent := new(documentRenderAgent)
+	renderAgent.sasm = sasm
+	renderAgent.gasm = gasm
+	renderAgent.templateManager = templateManager
+	renderAgent.temporaryFileManager = temporaryFileManager
+	renderAgent.downloader = downloader
+	renderAgent.uploader = uploader
+	renderAgent.workChannel = workChannel
+	renderAgent.statusListeners = make([]RenderStatusChannel, 0, 0)
+	renderAgent.stop = make(chan (chan bool))
 
-	go renderer.start()
+	go renderAgent.start()
 
-	return renderer
+	return renderAgent
 }
 
-func (renderer *libreOfficeConverter) start() {
+func (renderAgent *documentRenderAgent) start() {
 	for {
 		select {
-		case ch, ok := <-renderer.stop:
+		case ch, ok := <-renderAgent.stop:
 			{
 				log.Println("Stopping")
 				if !ok {
@@ -62,34 +62,34 @@ func (renderer *libreOfficeConverter) start() {
 				ch <- true
 				return
 			}
-		case id, ok := <-renderer.workChannel:
+		case id, ok := <-renderAgent.workChannel:
 			{
 				if !ok {
 					return
 				}
 				log.Println("Received dispatch message", id)
-				renderer.renderGeneratedAsset(id)
+				renderAgent.renderGeneratedAsset(id)
 			}
 		}
 	}
 }
 
-func (renderer *libreOfficeConverter) Stop() {
+func (renderAgent *documentRenderAgent) Stop() {
 	callback := make(chan bool)
-	renderer.stop <- callback
+	renderAgent.stop <- callback
 	select {
 	case <-callback:
 	case <-time.After(5 * time.Second):
 	}
-	close(renderer.stop)
+	close(renderAgent.stop)
 }
 
-func (renderer *libreOfficeConverter) AddStatusListener(listener RenderStatusChannel) {
-	renderer.statusListeners = append(renderer.statusListeners, listener)
+func (renderAgent *documentRenderAgent) AddStatusListener(listener RenderStatusChannel) {
+	renderAgent.statusListeners = append(renderAgent.statusListeners, listener)
 }
 
-func (renderer *libreOfficeConverter) Dispatch() RenderAgentWorkChannel {
-	return renderer.workChannel
+func (renderAgent *documentRenderAgent) Dispatch() RenderAgentWorkChannel {
+	return renderAgent.workChannel
 }
 
 /*
@@ -105,21 +105,21 @@ func (renderer *libreOfficeConverter) Dispatch() RenderAgentWorkChannel {
 10. For each page in the pdf, create a generated asset record for each of the default templates.
 11. Update the status of the generated asset as complete.
 */
-func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
+func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 
-	generatedAsset, err := renderer.gasm.FindById(id)
+	generatedAsset, err := renderAgent.gasm.FindById(id)
 	if err != nil {
 		log.Fatal("No Generated Asset with that ID can be retreived from storage: ", id)
 		return
 	}
 
-	statusCallback := renderer.commitStatus(generatedAsset.Id, generatedAsset.Attributes)
+	statusCallback := renderAgent.commitStatus(generatedAsset.Id, generatedAsset.Attributes)
 	defer func() { close(statusCallback) }()
 
 	generatedAsset.Status = common.GeneratedAssetStatusProcessing
-	renderer.gasm.Update(generatedAsset)
+	renderAgent.gasm.Update(generatedAsset)
 
-	sourceAssets, err := renderer.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
+	sourceAssets, err := renderAgent.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindSourceAssetsById), nil}
 		return
@@ -130,7 +130,7 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 	}
 	sourceAsset := sourceAssets[0]
 
-	templates, err := renderer.templateManager.FindByIds([]string{generatedAsset.TemplateId})
+	templates, err := renderAgent.templateManager.FindByIds([]string{generatedAsset.TemplateId})
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindTemplatesById), nil}
 		return
@@ -142,28 +142,28 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 	template := templates[0]
 
 	urls := sourceAsset.GetAttribute(common.SourceAssetAttributeSource)
-	sourceFile, err := renderer.tryDownload(urls)
+	sourceFile, err := renderAgent.tryDownload(urls)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoDownloadUrlsWork), nil}
 		return
 	}
 	defer sourceFile.Release()
 
-	destination, err := renderer.createTemporaryDestinationDirectory()
+	destination, err := renderAgent.createTemporaryDestinationDirectory()
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
-	destinationTemporaryFile := renderer.temporaryFileManager.Create(destination)
+	destinationTemporaryFile := renderAgent.temporaryFileManager.Create(destination)
 	defer destinationTemporaryFile.Release()
 
-	err = renderer.createPdf(sourceFile.Path(), destination)
+	err = renderAgent.createPdf(sourceFile.Path(), destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
 		return
 	}
 
-	files, err := renderer.getRenderedFiles(destination)
+	files, err := renderAgent.getRenderedFiles(destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
@@ -176,7 +176,7 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 	pages := 1
 
 	storedFile := "protocol://path/to/new/file"
-	err = renderer.upload(storedFile, files[0])
+	err = renderAgent.upload(storedFile, files[0])
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotUploadAsset), nil}
 		return
@@ -191,8 +191,8 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"pdf"})
 	// TODO: Add support for the expiration attribute.
 
-	renderer.sasm.Store(pdfSourceAsset)
-	legacyDefaultTemplates, err := renderer.templateManager.FindByIds(common.LegacyDefaultTemplates)
+	renderAgent.sasm.Store(pdfSourceAsset)
+	legacyDefaultTemplates, err := renderAgent.templateManager.FindByIds(common.LegacyDefaultTemplates)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
@@ -211,14 +211,14 @@ func (renderer *libreOfficeConverter) renderGeneratedAsset(id string) {
 			location := fmt.Sprintf("local:///%s/%s/%d", sourceAsset.Id, placeholderSize, page)
 			pdfGeneratedAsset := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, template, location)
 			pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
-			renderer.gasm.Store(pdfGeneratedAsset)
+			renderAgent.gasm.Store(pdfGeneratedAsset)
 		}
 	}
 
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, nil}
 }
 
-func (renderer *libreOfficeConverter) createPdf(source, destination string) error {
+func (renderAgent *documentRenderAgent) createPdf(source, destination string) error {
 	_, err := exec.LookPath("soffice")
 	if err != nil {
 		log.Println("convert command not found")
@@ -243,19 +243,19 @@ func (renderer *libreOfficeConverter) createPdf(source, destination string) erro
 	return nil
 }
 
-func (renderer *libreOfficeConverter) tryDownload(urls []string) (common.TemporaryFile, error) {
+func (renderAgent *documentRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
 	return nil, common.ErrorNotImplemented
 }
 
-func (renderer *libreOfficeConverter) getSize(template *common.Template) (int, error) {
+func (renderAgent *documentRenderAgent) getSize(template *common.Template) (int, error) {
 	return 0, common.ErrorNotImplemented
 }
 
-func (renderer *libreOfficeConverter) upload(uploadDestination, renderedFilePath string) error {
+func (renderAgent *documentRenderAgent) upload(uploadDestination, renderedFilePath string) error {
 	return common.ErrorNotImplemented
 }
 
-func (renderer *libreOfficeConverter) commitStatus(id string, existingAttributes []common.Attribute) chan generatedAssetUpdate {
+func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttributes []common.Attribute) chan generatedAssetUpdate {
 	commitChannel := make(chan generatedAssetUpdate, 10)
 
 	go func() {
@@ -269,17 +269,17 @@ func (renderer *libreOfficeConverter) commitStatus(id string, existingAttributes
 			case message, ok := <-commitChannel:
 				{
 					if !ok {
-						for _, listener := range renderer.statusListeners {
+						for _, listener := range renderAgent.statusListeners {
 							listener <- RenderStatus{id, status, common.RenderAgentImageMagick}
 						}
-						generatedAsset, err := renderer.gasm.FindById(id)
+						generatedAsset, err := renderAgent.gasm.FindById(id)
 						if err != nil {
 							log.Fatal("This is not good:", err)
 							return
 						}
 						generatedAsset.Status = status
 						generatedAsset.Attributes = attributes
-						renderer.gasm.Update(generatedAsset)
+						renderAgent.gasm.Update(generatedAsset)
 						return
 					}
 					status = message.status
@@ -295,10 +295,10 @@ func (renderer *libreOfficeConverter) commitStatus(id string, existingAttributes
 	return commitChannel
 }
 
-func (renderer *libreOfficeConverter) createTemporaryDestinationDirectory() (string, error) {
+func (renderAgent *documentRenderAgent) createTemporaryDestinationDirectory() (string, error) {
 	return "", common.ErrorNotImplemented
 }
 
-func (renderer *libreOfficeConverter) getRenderedFiles(path string) ([]string, error) {
+func (renderAgent *documentRenderAgent) getRenderedFiles(path string) ([]string, error) {
 	return []string{}, common.ErrorNotImplemented
 }

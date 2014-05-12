@@ -133,7 +133,7 @@ func setupTest(path string) (*RendererManager, common.SourceAssetStorageManager,
 	uploader := newMockUploader()
 	rm := NewRendererManager(gasm, tfm)
 
-	rm.AddImageMagickRenderer(sasm, tm, downloader, uploader, 5)
+	rm.AddImageMagickRenderAgent(sasm, tm, downloader, uploader, 5)
 
 	return rm, sasm, gasm, tm
 }

@@ -9,28 +9,30 @@ import (
 )
 
 type RendererManager struct {
-	gasm                 common.GeneratedAssetStorageManager
-	temporaryFileManager common.TemporaryFileManager
-	workStatus           RenderStatusChannel
-	workChannels         map[string]RenderAgentWorkChannel
-	renderers            map[string][]Renderer
-	activeWork           map[string][]string
-	maxWork              map[string]int
+	generatedAssetStorageManager common.GeneratedAssetStorageManager
+	temporaryFileManager         common.TemporaryFileManager
+	workStatus                   RenderStatusChannel
+	workChannels                 map[string]RenderAgentWorkChannel
+	renderAgents                 map[string][]RenderAgent
+	activeWork                   map[string][]string
+	maxWork                      map[string]int
 
 	stop chan (chan bool)
 	mu   sync.Mutex
 }
 
-func NewRendererManager(gasm common.GeneratedAssetStorageManager, temporaryFileManager common.TemporaryFileManager) *RendererManager {
+func NewRendererManager(
+	generatedAssetStorageManager common.GeneratedAssetStorageManager,
+	temporaryFileManager common.TemporaryFileManager) *RendererManager {
 	rm := new(RendererManager)
-	rm.gasm = gasm
+	rm.generatedAssetStorageManager = generatedAssetStorageManager
 	rm.temporaryFileManager = temporaryFileManager
 	rm.workStatus = make(RenderStatusChannel, 100)
 	rm.workChannels = make(map[string]RenderAgentWorkChannel)
 	for _, renderAgent := range common.RenderAgents {
 		rm.workChannels[renderAgent] = make(RenderAgentWorkChannel, 200)
 	}
-	rm.renderers = make(map[string][]Renderer)
+	rm.renderAgents = make(map[string][]RenderAgent)
 	rm.activeWork = make(map[string][]string)
 	rm.maxWork = make(map[string]int)
 
@@ -41,17 +43,17 @@ func NewRendererManager(gasm common.GeneratedAssetStorageManager, temporaryFileM
 }
 
 func (rm *RendererManager) AddListener(listener RenderStatusChannel) {
-	for _, renderers := range rm.renderers {
-		for _, renderer := range renderers {
-			renderer.AddStatusListener(listener)
+	for _, renderAgents := range rm.renderAgents {
+		for _, renderAgent := range renderAgents {
+			renderAgent.AddStatusListener(listener)
 		}
 	}
 }
 
 func (rm *RendererManager) Stop() {
-	for _, renderers := range rm.renderers {
-		for _, renderer := range renderers {
-			renderer.Stop()
+	for _, renderAgents := range rm.renderAgents {
+		for _, renderAgent := range renderAgents {
+			renderAgent.Stop()
 		}
 	}
 	for _, workChannel := range rm.workChannels {
@@ -67,30 +69,36 @@ func (rm *RendererManager) Stop() {
 	close(rm.stop)
 }
 
-func (rm *RendererManager) AddImageMagickRenderer(sasm common.SourceAssetStorageManager, tm common.TemplateManager, downloader common.Downloader, uploader common.Uploader, maxWorkIncrease int) Renderer {
-	renderer := NewImageMagickRenderer(sasm, rm.gasm, tm, rm.temporaryFileManager, downloader, uploader, rm.workChannels[common.RenderAgentImageMagick])
-	renderer.AddStatusListener(rm.workStatus)
-	rm.AddRenderer(common.RenderAgentImageMagick, renderer, maxWorkIncrease)
-	return renderer
+func (rm *RendererManager) AddImageMagickRenderAgent(sasm common.SourceAssetStorageManager, tm common.TemplateManager, downloader common.Downloader, uploader common.Uploader, maxWorkIncrease int) RenderAgent {
+	renderAgent := newImageMagickRenderAgent(sasm, rm.generatedAssetStorageManager, tm, rm.temporaryFileManager, downloader, uploader, rm.workChannels[common.RenderAgentImageMagick])
+	renderAgent.AddStatusListener(rm.workStatus)
+	rm.AddRenderAgent(common.RenderAgentImageMagick, renderAgent, maxWorkIncrease)
+	return renderAgent
 }
 
-func (rm *RendererManager) AddRenderer(name string, renderer Renderer, maxWorkIncrease int) {
+func (rm *RendererManager) AddDocumentRenderAgent(sasm common.SourceAssetStorageManager, tm common.TemplateManager, downloader common.Downloader, uploader common.Uploader, maxWorkIncrease int) RenderAgent {
+	renderAgent := newDocumentRenderAgent(sasm, rm.generatedAssetStorageManager, tm, rm.temporaryFileManager, downloader, uploader, "todo-base-path", rm.workChannels[common.RenderAgentDocument])
+	renderAgent.AddStatusListener(rm.workStatus)
+	rm.AddRenderAgent(common.RenderAgentDocument, renderAgent, maxWorkIncrease)
+	return renderAgent
+}
+
+func (rm *RendererManager) AddRenderAgent(name string, renderAgent RenderAgent, maxWorkIncrease int) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	renderers, hasRenderers := rm.renderers[name]
-	if !hasRenderers {
-		log.Println("Adding first renderer of kind", name)
-		renderers = make([]Renderer, 0, 0)
-		renderers = append(renderers, renderer)
-		rm.renderers[name] = renderers
+	renderAgents, hasRenderAgents := rm.renderAgents[name]
+	if !hasRenderAgents {
+		renderAgents = make([]RenderAgent, 0, 0)
+		renderAgents = append(renderAgents, renderAgent)
+		rm.renderAgents[name] = renderAgents
 		rm.maxWork[name] = maxWorkIncrease
 		rm.activeWork[name] = make([]string, 0, 0)
 		return
 	}
 
-	renderers = append(renderers, renderer)
-	rm.renderers[name] = renderers
+	renderAgents = append(renderAgents, renderAgent)
+	rm.renderAgents[name] = renderAgents
 
 	maxWork := rm.maxWork[name]
 	rm.maxWork[name] = maxWork + maxWorkIncrease
@@ -128,23 +136,23 @@ func (rm *RendererManager) dispatchMoreWork() {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	for name, renderers := range rm.renderers {
+	for name, renderAgents := range rm.renderAgents {
 		workCount := rm.workToDispatchCount(name)
-		rendererCount := len(renderers)
-		log.Println("Looking for work for", name, "and found", workCount, "slots for", rendererCount, "renderers.")
+		rendererCount := len(renderAgents)
+		log.Println("Looking for work for", name, "and found", workCount, "slots for", rendererCount, "render agents.")
 		if workCount > 0 && rendererCount > 0 {
-			renderer := renderers[0]
-			generatedAssets, err := rm.gasm.FindWorkForService(name, workCount)
+			renderAgent := renderAgents[0]
+			generatedAssets, err := rm.generatedAssetStorageManager.FindWorkForService(name, workCount)
 			if err != nil {
-				log.Println("gasm.FindWorkForService error", err)
+				log.Println("generatedAssetStorageManager.FindWorkForService error", err)
 			} else {
 				for _, generatedAsset := range generatedAssets {
 					generatedAsset.Status = common.GeneratedAssetStatusScheduled
-					err := rm.gasm.Update(generatedAsset)
+					err := rm.generatedAssetStorageManager.Update(generatedAsset)
 					if err == nil {
 						log.Println("Dispatching", generatedAsset.Id)
 						rm.activeWork[name] = uniqueListWith(rm.activeWork[name], generatedAsset.Id)
-						renderer.Dispatch() <- generatedAsset.Id
+						renderAgent.Dispatch() <- generatedAsset.Id
 					}
 				}
 			}

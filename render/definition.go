@@ -1,6 +1,6 @@
 package render
 
-type Renderer interface {
+type RenderAgent interface {
 	Stop()
 	AddStatusListener(listener RenderStatusChannel)
 	Dispatch() RenderAgentWorkChannel
