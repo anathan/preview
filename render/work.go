@@ -1,8 +1,10 @@
 package render
 
 import (
+	"fmt"
 	"github.com/ngerakines/preview/common"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +50,46 @@ func NewRenderAgentManager(
 	go agentManager.run()
 
 	return agentManager
+}
+
+func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType string, size int64) {
+	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(size, 10)})
+	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{url})
+	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{fileType})
+
+	agentManager.sourceAssetStorageManager.Store(sourceAsset)
+
+	templates, status, err := agentManager.whichRenderAgent(fileType)
+	if err != nil {
+		panic("crap")
+		return
+	}
+	for _, template := range templates {
+		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
+		if err != nil {
+			panic(err)
+		}
+		location := fmt.Sprintf("local:///%s/%s", sourceAssetId, placeholderSize)
+		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+		ga.Status = status
+		agentManager.generatedAssetStorageManager.Store(ga)
+	}
+}
+
+// TODO: Write this code.
+func (agentManager *RenderAgentManager) whichRenderAgent(fileType string) ([]*common.Template, string, error) {
+	var templateIds []string
+	if fileType == "doc" {
+		templateIds = []string{common.DocumentConversionTemplateId}
+	} else {
+		templateIds = common.LegacyDefaultTemplates
+	}
+	templates, err := agentManager.templateManager.FindByIds(templateIds)
+	if err != nil {
+		return nil, common.GeneratedAssetStatusFailed, err
+	}
+	return templates, common.DefaultGeneratedAssetStatus, nil
 }
 
 func (agentManager *RenderAgentManager) AddListener(listener RenderStatusChannel) {

@@ -137,13 +137,13 @@ func TestBasicIntegration(t *testing.T) {
 
 func cassandraConfig(tmpFilePath string) (config.AppConfig, error) {
 	return config.NewUserAppConfig([]byte(`{
-		"common": {"nodeId": "foo", "placeholderBasePath": "` + filepath.Join(util.Cwd(), "../test-data/placeholders/") + `", "placeholderGroups": {"image": ["jpg"]} },
+		"common": {"nodeId": "foo", "localAssetStoragePath": "` + tmpFilePath + `", "placeholderBasePath": "` + filepath.Join(util.Cwd(), "../test-data/placeholders/") + `", "placeholderGroups": {"image": ["jpg"]} },
 		"http": {"listen": ":8081"},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
-		"imageMagickRenderer": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 33554432}},
+		"imageMagickRenderAgent": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 33554432}},
 		"documentRenderAgent": {"enabled": true, "count": 16,"basePath": "` + tmpFilePath + `"},
 		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
-		"assetApi": {"basePath": "` + tmpFilePath + `"},
+		"assetApi": {"enabled": true},
 		"uploader": {"engine": "local", "localBasePath": "` + tmpFilePath + `"},
 		"downloader": {"basePath": "` + tmpFilePath + `"}
 		}`))

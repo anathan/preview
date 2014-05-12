@@ -2,10 +2,9 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
-	"github.com/ngerakines/preview/config"
+	"github.com/ngerakines/preview/render"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 type simpleBlueprint struct {
 	base                         string
 	edgeContentHost              string
+	renderAgentManager           *render.RenderAgentManager
 	sourceAssetStorageManager    common.SourceAssetStorageManager
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
@@ -25,7 +25,8 @@ type simpleBlueprint struct {
 
 // NewSimpleBlueprint creates a new simpleBlueprint object.
 func NewSimpleBlueprint(
-	appConfig config.AppConfig,
+	edgeContentHost string,
+	renderAgentManager *render.RenderAgentManager,
 	sourceAssetStorageManager common.SourceAssetStorageManager,
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -33,7 +34,8 @@ func NewSimpleBlueprint(
 	supportedFileTypes map[string]int64) (*simpleBlueprint, error) {
 	blueprint := new(simpleBlueprint)
 	blueprint.base = "/api"
-	blueprint.edgeContentHost = appConfig.SimpleApi().EdgeBaseUrl()
+	blueprint.edgeContentHost = edgeContentHost
+	blueprint.renderAgentManager = renderAgentManager
 	blueprint.sourceAssetStorageManager = sourceAssetStorageManager
 	blueprint.generatedAssetStorageManager = generatedAssetStorageManager
 	blueprint.templateManager = templateManager
@@ -135,29 +137,8 @@ func (blueprint *simpleBlueprint) urlHasFileId(url string) (string, bool) {
 }
 
 func (blueprint *simpleBlueprint) handleGeneratePreviewRequest(gprs []*generatePreviewRequest) {
-	defaultTemplates, err := blueprint.templateManager.FindByIds(common.LegacyDefaultTemplates)
-	if err != nil {
-		return
-	}
-
 	for _, gpr := range gprs {
-		sourceAsset := common.NewSourceAsset(gpr.id, common.SourceAssetTypeOrigin)
-		sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(gpr.size, 10)})
-		sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{gpr.url})
-		sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{gpr.requestType})
-		// TODO: Add support for the expiration attribute.
-
-		blueprint.sourceAssetStorageManager.Store(sourceAsset)
-
-		status := blueprint.generatedAssetStatus(gpr.requestType, gpr.size)
-		for _, template := range defaultTemplates {
-			placeholderSize, _ := blueprint.templatePlaceholderSize(template)
-			location := fmt.Sprintf("local:///%s/%s", gpr.id, placeholderSize)
-			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
-			ga.Status = status
-			ga.AddAttribute(common.GeneratedAssetAttributePage, []string{"0"})
-			blueprint.generatedAssetStorageManager.Store(ga)
-		}
+		blueprint.renderAgentManager.CreateWork(gpr.id, gpr.url, gpr.requestType, gpr.size)
 	}
 }
 

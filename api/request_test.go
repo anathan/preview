@@ -1,6 +1,7 @@
 package api
 
 import (
+	_ "github.com/ngerakines/testutils"
 	"testing"
 )
 

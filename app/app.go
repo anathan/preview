@@ -163,7 +163,7 @@ func (app *AppContext) initApis() error {
 	var err error
 
 	if app.appConfig.SimpleApi().Enabled() {
-		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.appConfig, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, allSupportedFileTypes)
+		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, allSupportedFileTypes)
 		if err != nil {
 			return err
 		}
