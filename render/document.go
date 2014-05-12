@@ -1,18 +1,16 @@
 package render
 
-// ./soffice --headless --nologo --nofirststartwizard --convert-to pdf ~/Downloads/ChefConf2014schedule.docx --outdir ~/Desktop/
-
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/ngerakines/preview/common"
-	"github.com/ngerakines/preview/util"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -135,21 +133,10 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	// 3. Get the template
-	/* templates, err := renderAgent.templateManager.FindByIds([]string{generatedAsset.TemplateId})
-	if err != nil {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindTemplatesById), nil}
-		return
-	}
-	if len(templates) == 0 {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoTemplatesFoundForId), nil}
-		return
-	}
-	template := templates[0] */
+	// 3. Get the template... not needed yet
 
 	// 4. Fetch the source asset file
 	urls := sourceAsset.GetAttribute(common.SourceAssetAttributeSource)
-	log.Println("Attempting urls", urls)
 	sourceFile, err := renderAgent.tryDownload(urls)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoDownloadUrlsWork), nil}
@@ -157,13 +144,9 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	}
 	defer sourceFile.Release()
 
-	log.Println("---- Downloaded file to", sourceFile.Path(), "----")
-	log.Println("Can load", sourceFile.Path(), util.CanLoadFile(sourceFile.Path()))
-
 	// 	// 5. Create a temporary destination directory.
 	destination, err := renderAgent.createTemporaryDestinationDirectory()
 	if err != nil {
-		panic("destination create tmp")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
@@ -172,44 +155,42 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 
 	err = renderAgent.createPdf(sourceFile.Path(), destination)
 	if err != nil {
-		panic("create pdf")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
 		return
 	}
 
 	files, err := renderAgent.getRenderedFiles(destination)
 	if err != nil {
-		panic("get files")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
 	if len(files) != 1 {
-		panic("no files")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
 
-	pages := 1
+	pages, err := renderAgent.getPdfPageCount(files[0])
+	if err != nil {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
 
-	log.Println("Uploading file")
 	err = renderAgent.uploader.Upload(generatedAsset.Location, files[0])
 	if err != nil {
-		panic("upload failed")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotUploadAsset), nil}
 		return
 	}
 
 	fi, err := os.Stat(destination)
 	if err != nil {
-		panic("file size fail")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineFileSize), nil}
 		return
 	}
 	pdfFileSize := fi.Size()
-	log.Println("File size of pdf", pdfFileSize)
 
 	pdfSourceAsset := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(pdfFileSize, 10)})
+	pdfSourceAsset.AddAttribute(common.SourceAssetAttributePages, []string{strconv.Itoa(pages)})
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{generatedAsset.Location})
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"pdf"})
 	// TODO: Add support for the expiration attribute.
@@ -257,22 +238,21 @@ func (renderAgent *documentRenderAgent) getSourceAsset(generatedAsset *common.Ge
 }
 
 func (renderAgent *documentRenderAgent) createPdf(source, destination string) error {
-	// _, err := exec.LookPath("soffice")
-	// if err != nil {
-	// 	log.Println("convert command not found")
-	// 	return err
-	// }
+	_, err := exec.LookPath("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+	if err != nil {
+		log.Println("soffice command not found")
+		return err
+	}
 
 	// TODO: Make this path configurable.
 	cmd := exec.Command("/Applications/LibreOffice.app/Contents/MacOS/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
-	cmd.Dir = "/Applications/LibreOffice.app/Contents/MacOS/"
 	log.Println(cmd)
 
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 
-	err := cmd.Run()
+	err = cmd.Run()
 	log.Println(buf.String())
 	if err != nil {
 		log.Println("error running command", err)
@@ -280,6 +260,27 @@ func (renderAgent *documentRenderAgent) createPdf(source, destination string) er
 	}
 
 	return nil
+}
+
+var pdfPageCount = regexp.MustCompile(`Pages:\s+(\d)`)
+
+// pdfinfo ~/Desktop/ChefConf2014schedule.pdf
+func (renderAgent *documentRenderAgent) getPdfPageCount(file string) (int, error) {
+	_, err := exec.LookPath("pdfinfo")
+	if err != nil {
+		log.Println("pdfinfo command not found")
+		return 0, err
+	}
+	out, err := exec.Command("pdfinfo", file).Output()
+	if err != nil {
+		log.Fatal(err)
+		return 0, err
+	}
+	matches := pdfPageCount.FindStringSubmatch(string(out))
+	if len(matches) == 2 {
+		return strconv.Atoi(matches[1])
+	}
+	return 0, nil
 }
 
 func (renderAgent *documentRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
@@ -290,10 +291,6 @@ func (renderAgent *documentRenderAgent) tryDownload(urls []string) (common.Tempo
 		}
 	}
 	return nil, common.ErrorNoDownloadUrlsWork
-}
-
-func (renderAgent *documentRenderAgent) getSize(template *common.Template) (int, error) {
-	return 0, common.ErrorNotImplemented
 }
 
 func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttributes []common.Attribute) chan generatedAssetUpdate {

@@ -69,6 +69,8 @@ var (
 	SourceAssetAttributeType = "type"
 	// SourceAssetAttributeSize is a constant for the size attribute that can be set for source assets.
 	SourceAssetAttributeSize = "size"
+	// SourceAssetAttributePages is a constant for the pages attribute that can be set for source assets.
+	SourceAssetAttributePages = "pages"
 
 	// GeneratedAssetAttributePage is a constant for the page attribute that can be set for generated assets.
 	GeneratedAssetAttributePage = "page"

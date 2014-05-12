@@ -203,6 +203,11 @@ By default, the document render agent is enabled.
 
 This render agent will attempt to convert documents to PDF files to then have images generated from the PDF files.
 
+This render agent requires the following executables be available on the path:
+
+* soffice
+* pdfinfo
+
 ## Uploader
 
 By default, the "local" uploader is enabled. This uploader engine will simply copy rendered images from the temporary file/directory to the configured base path.
