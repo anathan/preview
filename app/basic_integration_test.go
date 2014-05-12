@@ -44,7 +44,7 @@ func TestBasicIntegration(t *testing.T) {
 	defer previewApp.Stop()
 
 	testListener := make(render.RenderStatusChannel)
-	previewApp.rendererManager.AddListener(testListener)
+	previewApp.agentManager.AddListener(testListener)
 
 	sourceAssetId := uuid.New()
 

@@ -18,22 +18,28 @@ type Downloader interface {
 }
 
 type defaultDownloader struct {
-	basePath string
-	tfm      TemporaryFileManager
+	basePath         string
+	localStoragePath string
+	tfm              TemporaryFileManager
 }
 
 // NewDownloader creates, configures and returns a new defaultDownloader.
-func NewDownloader(basePath string, tfm TemporaryFileManager) Downloader {
+func NewDownloader(basePath, localStoragePath string, tfm TemporaryFileManager) Downloader {
 	downloader := new(defaultDownloader)
 	downloader.basePath = basePath
+	downloader.localStoragePath = localStoragePath
 	downloader.tfm = tfm
 	return downloader
 }
 
 // Download attempts to retreive a file with a given url and store it to a temporary file that is managed by a TemporaryFileManager.
 func (downloader *defaultDownloader) Download(url string) (TemporaryFile, error) {
+	log.Println("Attempting to download", url)
 	if strings.HasPrefix(url, "file://") {
 		return downloader.handleFile(url)
+	}
+	if strings.HasPrefix(url, "local://") {
+		return downloader.handleLocal(url)
 	}
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 		return downloader.handleHttp(url)
@@ -41,16 +47,50 @@ func (downloader *defaultDownloader) Download(url string) (TemporaryFile, error)
 	return nil, ErrorNotImplemented
 }
 
+func (downloader *defaultDownloader) handleLocal(url string) (TemporaryFile, error) {
+	log.Println("Attempting to download file", url[8:])
+	path := filepath.Join(downloader.localStoragePath, url[8:])
+
+	newPath := filepath.Join(downloader.basePath, uuid.New())
+
+	newPathDir := filepath.Dir(newPath)
+	err := os.MkdirAll(newPathDir, 0777)
+	if err != nil {
+		log.Println("error copying file:", err.Error())
+		return nil, err
+	}
+
+	err = copyFile(path, newPath)
+	if err != nil {
+		log.Println("error copying file:", err.Error())
+		return nil, err
+	}
+	log.Println("File", path, "copied to", newPath)
+
+	return downloader.tfm.Create(newPath), nil
+}
+
 func (downloader *defaultDownloader) handleFile(url string) (TemporaryFile, error) {
+	log.Println("Attempting to download file", url[7:])
 	log.Println("downloading file url", url)
 	path := url[7:]
 	log.Println("actual path", path)
 
 	newPath := filepath.Join(downloader.basePath, uuid.New())
-	err := copyFile(path, newPath)
+
+	newPathDir := filepath.Dir(newPath)
+	err := os.MkdirAll(newPathDir, 0777)
 	if err != nil {
+		log.Println("error copying file:", err.Error())
 		return nil, err
 	}
+
+	err = copyFile(path, newPath)
+	if err != nil {
+		log.Println("error copying file:", err.Error())
+		return nil, err
+	}
+	log.Println("File", path, "copied to", newPath)
 
 	return downloader.tfm.Create(newPath), nil
 }

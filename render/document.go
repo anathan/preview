@@ -4,11 +4,17 @@ package render
 
 import (
 	"bytes"
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/ngerakines/preview/common"
+	"github.com/ngerakines/preview/util"
+	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,6 +27,7 @@ type documentRenderAgent struct {
 	workChannel          RenderAgentWorkChannel
 	statusListeners      []RenderStatusChannel
 	temporaryFileManager common.TemporaryFileManager
+	tempFileBasePath     string
 	stop                 chan (chan bool)
 }
 
@@ -31,7 +38,7 @@ func newDocumentRenderAgent(
 	temporaryFileManager common.TemporaryFileManager,
 	downloader common.Downloader,
 	uploader common.Uploader,
-	basePath string,
+	tempFileBasePath string,
 	workChannel RenderAgentWorkChannel) RenderAgent {
 
 	renderAgent := new(documentRenderAgent)
@@ -42,6 +49,7 @@ func newDocumentRenderAgent(
 	renderAgent.downloader = downloader
 	renderAgent.uploader = uploader
 	renderAgent.workChannel = workChannel
+	renderAgent.tempFileBasePath = tempFileBasePath
 	renderAgent.statusListeners = make([]RenderStatusChannel, 0, 0)
 	renderAgent.stop = make(chan (chan bool))
 
@@ -107,6 +115,7 @@ func (renderAgent *documentRenderAgent) Dispatch() RenderAgentWorkChannel {
 */
 func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 
+	// 1. Get the generated asset
 	generatedAsset, err := renderAgent.gasm.FindById(id)
 	if err != nil {
 		log.Fatal("No Generated Asset with that ID can be retreived from storage: ", id)
@@ -119,29 +128,28 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	generatedAsset.Status = common.GeneratedAssetStatusProcessing
 	renderAgent.gasm.Update(generatedAsset)
 
-	sourceAssets, err := renderAgent.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
+	// 2. Get the source asset
+	sourceAsset, err := renderAgent.getSourceAsset(generatedAsset)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindSourceAssetsById), nil}
 		return
 	}
-	if len(sourceAssets) == 0 {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoSourceAssetsFoundForId), nil}
-		return
-	}
-	sourceAsset := sourceAssets[0]
 
-	templates, err := renderAgent.templateManager.FindByIds([]string{generatedAsset.TemplateId})
+	// 3. Get the template
+	/* templates, err := renderAgent.templateManager.FindByIds([]string{generatedAsset.TemplateId})
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindTemplatesById), nil}
 		return
 	}
-	if len(sourceAssets) == 0 {
+	if len(templates) == 0 {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoTemplatesFoundForId), nil}
 		return
 	}
-	template := templates[0]
+	template := templates[0] */
 
+	// 4. Fetch the source asset file
 	urls := sourceAsset.GetAttribute(common.SourceAssetAttributeSource)
+	log.Println("Attempting urls", urls)
 	sourceFile, err := renderAgent.tryDownload(urls)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoDownloadUrlsWork), nil}
@@ -149,8 +157,13 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	}
 	defer sourceFile.Release()
 
+	log.Println("---- Downloaded file to", sourceFile.Path(), "----")
+	log.Println("Can load", sourceFile.Path(), util.CanLoadFile(sourceFile.Path()))
+
+	// 	// 5. Create a temporary destination directory.
 	destination, err := renderAgent.createTemporaryDestinationDirectory()
 	if err != nil {
+		panic("destination create tmp")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
@@ -159,38 +172,49 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 
 	err = renderAgent.createPdf(sourceFile.Path(), destination)
 	if err != nil {
+		panic("create pdf")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
 		return
 	}
 
 	files, err := renderAgent.getRenderedFiles(destination)
 	if err != nil {
+		panic("get files")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
 	if len(files) != 1 {
+		panic("no files")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
 		return
 	}
 
 	pages := 1
 
-	storedFile := "protocol://path/to/new/file"
-	err = renderAgent.upload(storedFile, files[0])
+	log.Println("Uploading file")
+	err = renderAgent.uploader.Upload(generatedAsset.Location, files[0])
 	if err != nil {
+		panic("upload failed")
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotUploadAsset), nil}
 		return
 	}
 
-	// TODO: write this code
-	var pdfFileSize int64 = 1
+	fi, err := os.Stat(destination)
+	if err != nil {
+		panic("file size fail")
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineFileSize), nil}
+		return
+	}
+	pdfFileSize := fi.Size()
+	log.Println("File size of pdf", pdfFileSize)
 
 	pdfSourceAsset := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(pdfFileSize, 10)})
-	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{storedFile})
+	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{generatedAsset.Location})
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"pdf"})
 	// TODO: Add support for the expiration attribute.
 
+	log.Println("pdfSourceAsset", pdfSourceAsset)
 	renderAgent.sasm.Store(pdfSourceAsset)
 	legacyDefaultTemplates, err := renderAgent.templateManager.FindByIds(common.LegacyDefaultTemplates)
 	if err != nil {
@@ -209,8 +233,9 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 			}
 			// TODO: Update simple blueprint and image magick render agent to use this url structure.
 			location := fmt.Sprintf("local:///%s/%s/%d", sourceAsset.Id, placeholderSize, page)
-			pdfGeneratedAsset := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, template, location)
+			pdfGeneratedAsset := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
 			pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
+			log.Println("pdfGeneratedAsset", pdfGeneratedAsset)
 			renderAgent.gasm.Store(pdfGeneratedAsset)
 		}
 	}
@@ -218,41 +243,57 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, nil}
 }
 
-func (renderAgent *documentRenderAgent) createPdf(source, destination string) error {
-	_, err := exec.LookPath("soffice")
+func (renderAgent *documentRenderAgent) getSourceAsset(generatedAsset *common.GeneratedAsset) (*common.SourceAsset, error) {
+	sourceAssets, err := renderAgent.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
 	if err != nil {
-		log.Println("convert command not found")
-		return err
+		return nil, err
 	}
+	for _, sourceAsset := range sourceAssets {
+		if sourceAsset.IdType == generatedAsset.SourceAssetType {
+			return sourceAsset, nil
+		}
+	}
+	return nil, common.ErrorNoSourceAssetsFoundForId
+}
+
+func (renderAgent *documentRenderAgent) createPdf(source, destination string) error {
+	// _, err := exec.LookPath("soffice")
+	// if err != nil {
+	// 	log.Println("convert command not found")
+	// 	return err
+	// }
 
 	// TODO: Make this path configurable.
-	cmd := exec.Command("/Applications/LibreOffice.app/Contents/program/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
-	cmd.Dir = "/Applications/LibreOffice.app/Contents/program"
+	cmd := exec.Command("/Applications/LibreOffice.app/Contents/MacOS/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
+	cmd.Dir = "/Applications/LibreOffice.app/Contents/MacOS/"
 	log.Println(cmd)
 
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 
-	err = cmd.Run()
+	err := cmd.Run()
+	log.Println(buf.String())
 	if err != nil {
+		log.Println("error running command", err)
 		return err
 	}
-	log.Println(buf.String())
 
 	return nil
 }
 
 func (renderAgent *documentRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
-	return nil, common.ErrorNotImplemented
+	for _, url := range urls {
+		tempFile, err := renderAgent.downloader.Download(url)
+		if err == nil {
+			return tempFile, nil
+		}
+	}
+	return nil, common.ErrorNoDownloadUrlsWork
 }
 
 func (renderAgent *documentRenderAgent) getSize(template *common.Template) (int, error) {
 	return 0, common.ErrorNotImplemented
-}
-
-func (renderAgent *documentRenderAgent) upload(uploadDestination, renderedFilePath string) error {
-	return common.ErrorNotImplemented
 }
 
 func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttributes []common.Attribute) chan generatedAssetUpdate {
@@ -270,15 +311,16 @@ func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttribut
 				{
 					if !ok {
 						for _, listener := range renderAgent.statusListeners {
-							listener <- RenderStatus{id, status, common.RenderAgentImageMagick}
+							listener <- RenderStatus{id, status, common.RenderAgentDocument}
 						}
 						generatedAsset, err := renderAgent.gasm.FindById(id)
 						if err != nil {
-							log.Fatal("This is not good:", err)
+							panic(err)
 							return
 						}
 						generatedAsset.Status = status
 						generatedAsset.Attributes = attributes
+						log.Println("Updating", generatedAsset)
 						renderAgent.gasm.Update(generatedAsset)
 						return
 					}
@@ -296,9 +338,29 @@ func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttribut
 }
 
 func (renderAgent *documentRenderAgent) createTemporaryDestinationDirectory() (string, error) {
-	return "", common.ErrorNotImplemented
+	tmpPath := filepath.Join(renderAgent.tempFileBasePath, uuid.New())
+	err := os.MkdirAll(tmpPath, 0777)
+	if err != nil {
+		log.Println("error creating tmp dir", err)
+		return "", err
+	}
+	return tmpPath, nil
 }
 
 func (renderAgent *documentRenderAgent) getRenderedFiles(path string) ([]string, error) {
-	return []string{}, common.ErrorNotImplemented
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		log.Println("Error reading files in placeholder base directory:", err)
+		return nil, err
+	}
+	paths := make([]string, 0, 0)
+	for _, file := range files {
+		if !file.IsDir() {
+			// NKG: The convert command will create files of the same name but with the ".pdf" extension.
+			if strings.HasSuffix(file.Name(), ".pdf") {
+				paths = append(paths, filepath.Join(path, file.Name()))
+			}
+		}
+	}
+	return paths, nil
 }

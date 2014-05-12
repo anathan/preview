@@ -5,6 +5,7 @@ import (
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/ngerakines/testutils"
+	"log"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,17 +18,22 @@ import (
 // TODO: Write test for PDF with more than 1 page.
 // TODO: Write test for animated gif.
 
-func TestRenderJpegPreview(t *testing.T) {
+func aTestRenderJpegPreview(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Short Tests Only: TestRenderPdfPreview")
+		t.Skip("Short Tests Only: TestRenderJpegPreview")
 		return
 	}
+
+	common.DumpErrors()
 
 	dm := testutils.NewDirectoryManager()
 	defer dm.Close()
 
 	rm, sasm, gasm, tm := setupTest(dm.Path)
 	defer rm.Stop()
+
+	testListener := make(RenderStatusChannel, 25)
+	rm.AddListener(testListener)
 
 	sourceAssetId := uuid.New()
 	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
@@ -56,7 +62,7 @@ func TestRenderJpegPreview(t *testing.T) {
 	}
 }
 
-func TestRenderPdfPreview(t *testing.T) {
+func aTestRenderPdfPreview(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Short Tests Only: TestRenderPdfPreview")
 		return
@@ -87,7 +93,6 @@ func TestRenderPdfPreview(t *testing.T) {
 	}
 	for _, template := range templates {
 		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, "location")
-		ga.AddAttribute(common.GeneratedAssetAttributePage, []string{"0"})
 		gasm.Store(ga)
 	}
 	if assertGeneratedAssetCount(sourceAssetId, gasm, common.GeneratedAssetStatusComplete, 4) {
@@ -108,47 +113,47 @@ func assertGeneratedAssetCount(id string, generatedAssetStorageManager common.Ge
 						count = count + 1
 					}
 				}
-				if count == expectedCount {
-					callback <- true
+				if count > 0 {
+					log.Println("Count is", count, "but wanted", expectedCount)
 				}
+				if count == expectedCount {
+					callback <- false
+				}
+			} else {
+				callback <- true
 			}
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
-	select {
-	case <-callback:
-		return false
-	case <-time.After(10 * time.Second):
-		return true
+	for {
+		select {
+		case result := <-callback:
+			return result
+		case <-time.After(10 * time.Second):
+			generatedAssets, err := generatedAssetStorageManager.FindBySourceAssetId(id)
+			log.Println("generatedAssets", generatedAssets, "err", err)
+			return true
+		}
 	}
 }
 
-func setupTest(path string) (*RendererManager, common.SourceAssetStorageManager, common.GeneratedAssetStorageManager, common.TemplateManager) {
-	sasm := common.NewSourceAssetStorageManager()
-	gasm := common.NewGeneratedAssetStorageManager()
-
+func setupTest(path string) (*RenderAgentManager, common.SourceAssetStorageManager, common.GeneratedAssetStorageManager, common.TemplateManager) {
 	tm := common.NewTemplateManager()
+	sourceAssetStorageManager := common.NewSourceAssetStorageManager()
+	generatedAssetStorageManager := common.NewGeneratedAssetStorageManager(tm)
+
 	tfm := common.NewTemporaryFileManager()
-	downloader := common.NewDownloader(path, tfm)
-	uploader := newMockUploader()
-	rm := NewRendererManager(gasm, tfm)
+	downloader := common.NewDownloader(path, path, tfm)
+	uploader := common.NewLocalUploader(path)
+	rm := NewRenderAgentManager(sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm)
 
-	rm.AddImageMagickRenderAgent(sasm, tm, downloader, uploader, 5)
+	rm.AddImageMagickRenderAgent(downloader, uploader, 5)
+	rm.AddDocumentRenderAgent(downloader, uploader, filepath.Join(path, "doc-cache"), 5)
 
-	return rm, sasm, gasm, tm
+	return rm, sourceAssetStorageManager, generatedAssetStorageManager, tm
 }
 
 func fileUrl(dir, file string) string {
 	return "file://" + filepath.Join(util.Cwd(), "../", dir, file)
-}
-
-type mockUploader struct {
-}
-
-func (uploader *mockUploader) Upload(destination string, path string) error {
-	return nil
-}
-
-func newMockUploader() common.Uploader {
-	return new(mockUploader)
 }

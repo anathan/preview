@@ -1,6 +1,7 @@
 package common
 
 import (
+	"log"
 	"time"
 )
 
@@ -35,6 +36,7 @@ type inMemorySourceAssetStorageManager struct {
 
 type inMemoryGeneratedAssetStorageManager struct {
 	generatedAssets []*GeneratedAsset
+	templateManager TemplateManager
 }
 
 type inMemoryTemplateManager struct {
@@ -45,8 +47,8 @@ func NewSourceAssetStorageManager() SourceAssetStorageManager {
 	return &inMemorySourceAssetStorageManager{make([]*SourceAsset, 0, 0)}
 }
 
-func NewGeneratedAssetStorageManager() GeneratedAssetStorageManager {
-	return &inMemoryGeneratedAssetStorageManager{make([]*GeneratedAsset, 0, 0)}
+func NewGeneratedAssetStorageManager(templateManager TemplateManager) GeneratedAssetStorageManager {
+	return &inMemoryGeneratedAssetStorageManager{make([]*GeneratedAsset, 0, 0), templateManager}
 }
 
 func NewTemplateManager() TemplateManager {
@@ -56,6 +58,7 @@ func NewTemplateManager() TemplateManager {
 	tm.Store(DefaultTemplateLarge)
 	tm.Store(DefaultTemplateMedium)
 	tm.Store(DefaultTemplateSmall)
+	tm.Store(DocumentConversionTemplate)
 	return tm
 }
 
@@ -111,24 +114,40 @@ func (gasm *inMemoryGeneratedAssetStorageManager) FindBySourceAssetId(id string)
 }
 
 func (gasm *inMemoryGeneratedAssetStorageManager) FindWorkForService(serviceName string, workCount int) ([]*GeneratedAsset, error) {
+	templates, _ := gasm.templateManager.FindByRenderService(serviceName)
+	log.Println("templates for", serviceName, ":", templates)
 	results := make([]*GeneratedAsset, 0, 0)
 	for _, generatedAsset := range gasm.generatedAssets {
-		if generatedAsset.Status == GeneratedAssetStatusWaiting {
-			generatedAsset.Status = GeneratedAssetStatusScheduled
-			generatedAsset.UpdatedAt = time.Now().UnixNano()
-			results = append(results, generatedAsset)
-		}
-		if len(results) >= workCount {
-			return results, nil
+		for _, template := range templates {
+			if generatedAsset.TemplateId == template.Id {
+				if generatedAsset.Status == GeneratedAssetStatusWaiting {
+					generatedAsset.Status = GeneratedAssetStatusScheduled
+					generatedAsset.UpdatedAt = time.Now().UnixNano()
+					results = append(results, generatedAsset)
+				}
+				if len(results) >= workCount {
+					return results, nil
+				}
+			}
 		}
 	}
+	log.Println("generated assets for service", serviceName, ":", buildGeneratedAssetIds(results))
 	return results, nil
+}
+
+func buildGeneratedAssetIds(generatedAssets []*GeneratedAsset) []string {
+	results := make([]string, len(generatedAssets))
+	for index, generatedAsset := range generatedAssets {
+		results[index] = generatedAsset.Id
+	}
+	return results
 }
 
 func (gasm *inMemoryGeneratedAssetStorageManager) Update(givenGeneratedAsset *GeneratedAsset) error {
 	for _, generatedAsset := range gasm.generatedAssets {
 		if generatedAsset.Id == givenGeneratedAsset.Id {
-			generatedAsset = givenGeneratedAsset
+			generatedAsset.Status = givenGeneratedAsset.Status
+			generatedAsset.Attributes = givenGeneratedAsset.Attributes
 			generatedAsset.UpdatedAt = time.Now().UnixNano()
 			return nil
 		}

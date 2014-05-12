@@ -106,16 +106,11 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 	generatedAsset.Status = common.GeneratedAssetStatusProcessing
 	renderAgent.gasm.Update(generatedAsset)
 
-	sourceAssets, err := renderAgent.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
+	sourceAsset, err := renderAgent.getSourceAsset(generatedAsset)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindSourceAssetsById), nil}
 		return
 	}
-	if len(sourceAssets) == 0 {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoSourceAssetsFoundForId), nil}
-		return
-	}
-	sourceAsset := sourceAssets[0]
 
 	fileType, err := renderAgent.getSourceAssetFileType(sourceAsset)
 	if err != nil {
@@ -128,7 +123,7 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindTemplatesById), nil}
 		return
 	}
-	if len(sourceAssets) == 0 {
+	if len(templates) == 0 {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoTemplatesFoundForId), nil}
 		return
 	}
@@ -165,7 +160,7 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	err = renderAgent.upload(generatedAsset.Location, destination)
+	err = renderAgent.uploader.Upload(generatedAsset.Location, destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotUploadAsset), nil}
 		return
@@ -191,6 +186,19 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 	}
 
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, newAttributes}
+}
+
+func (renderAgent *imageMagickRenderAgent) getSourceAsset(generatedAsset *common.GeneratedAsset) (*common.SourceAsset, error) {
+	sourceAssets, err := renderAgent.sasm.FindBySourceAssetId(generatedAsset.SourceAssetId)
+	if err != nil {
+		return nil, err
+	}
+	for _, sourceAsset := range sourceAssets {
+		if sourceAsset.IdType == generatedAsset.SourceAssetType {
+			return sourceAsset, nil
+		}
+	}
+	return nil, common.ErrorNoSourceAssetsFoundForId
 }
 
 func (renderAgent *imageMagickRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
@@ -320,10 +328,6 @@ func (renderAgent *imageMagickRenderAgent) getSourceAssetFileType(sourceAsset *c
 	return "unknown", err
 }
 
-func (renderAgent *imageMagickRenderAgent) upload(uploadDestination, renderedFilePath string) error {
-	return renderAgent.uploader.Upload(uploadDestination, renderedFilePath)
-}
-
 type generatedAssetUpdate struct {
 	status     string
 	attributes []common.Attribute
@@ -348,7 +352,7 @@ func (renderAgent *imageMagickRenderAgent) commitStatus(id string, existingAttri
 						}
 						generatedAsset, err := renderAgent.gasm.FindById(id)
 						if err != nil {
-							log.Fatal("This is not good:", err)
+							log.Fatal(err.Error())
 							return
 						}
 						generatedAsset.Status = status

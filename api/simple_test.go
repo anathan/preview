@@ -100,9 +100,9 @@ Expects: Source asset for the payload, Generated assets that have failed.
 func testSimpleBlueprint() *simpleBlueprint {
 	blueprint := new(simpleBlueprint)
 	blueprint.base = ""
-	blueprint.sourceAssetStorageManager = common.NewSourceAssetStorageManager()
-	blueprint.generatedAssetStorageManager = common.NewGeneratedAssetStorageManager()
 	blueprint.templateManager = common.NewTemplateManager()
+	blueprint.sourceAssetStorageManager = common.NewSourceAssetStorageManager()
+	blueprint.generatedAssetStorageManager = common.NewGeneratedAssetStorageManager(blueprint.templateManager)
 	blueprint.supportedFileTypes = map[string]int64{"jpg": 9999999}
 	return blueprint
 }

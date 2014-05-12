@@ -12,7 +12,7 @@ import (
 
 type AppContext struct {
 	appConfig                    config.AppConfig
-	rendererManager              *render.RendererManager
+	agentManager                 *render.RenderAgentManager
 	sourceAssetStorageManager    common.SourceAssetStorageManager
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
@@ -59,7 +59,7 @@ func (app *AppContext) Start() {
 func (app *AppContext) initTrams() error {
 	app.placeholderManager = common.NewPlaceholderManager(app.appConfig)
 	app.temporaryFileManager = common.NewTemporaryFileManager()
-	app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.temporaryFileManager)
+	app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager)
 
 	switch app.appConfig.Uploader().Engine() {
 	case "s3":
@@ -86,11 +86,7 @@ func (app *AppContext) initTrams() error {
 		}
 	case "local":
 		{
-			basePath, err := app.appConfig.Uploader().LocalBasePath()
-			if err != nil {
-				return err
-			}
-			app.uploader = common.NewLocalUploader(basePath)
+			app.uploader = common.NewLocalUploader(app.appConfig.Common().LocalAssetStoragePath())
 		}
 	}
 
@@ -109,7 +105,7 @@ func (app *AppContext) initStorage() error {
 	case "memory":
 		{
 			app.sourceAssetStorageManager = common.NewSourceAssetStorageManager()
-			app.generatedAssetStorageManager = common.NewGeneratedAssetStorageManager()
+			app.generatedAssetStorageManager = common.NewGeneratedAssetStorageManager(app.templateManager)
 			return nil
 		}
 	case "cassandra":
@@ -145,10 +141,10 @@ func (app *AppContext) initStorage() error {
 func (app *AppContext) initRenderers() error {
 	// NKG: This is where the RendererManager is constructed and renderers
 	// are configured and enabled through it.
-	app.rendererManager = render.NewRendererManager(app.generatedAssetStorageManager, app.temporaryFileManager)
-	if app.appConfig.ImageMagickRenderer().Enabled() {
-		for i := 0; i < app.appConfig.ImageMagickRenderer().Count(); i++ {
-			app.rendererManager.AddImageMagickRenderAgent(app.sourceAssetStorageManager, app.templateManager, app.downloader, app.uploader, 5)
+	app.agentManager = render.NewRenderAgentManager(app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager)
+	if app.appConfig.ImageMagickRenderAgent().Enabled() {
+		for i := 0; i < app.appConfig.ImageMagickRenderAgent().Count(); i++ {
+			app.agentManager.AddImageMagickRenderAgent(app.downloader, app.uploader, 5)
 		}
 	}
 	return nil
@@ -160,7 +156,7 @@ func (app *AppContext) initApis() error {
 	app.martiniClassic = martini.Classic()
 
 	allSupportedFileTypes := make(map[string]int64)
-	for fileType, maxFileSize := range app.appConfig.ImageMagickRenderer().SupportedFileTypes() {
+	for fileType, maxFileSize := range app.appConfig.ImageMagickRenderAgent().SupportedFileTypes() {
 		allSupportedFileTypes[fileType] = maxFileSize
 	}
 
@@ -174,7 +170,7 @@ func (app *AppContext) initApis() error {
 		app.simpleBlueprint.ConfigureMartini(app.martiniClassic)
 	}
 
-	app.assetBlueprint = api.NewAssetBlueprint(app.appConfig, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager)
+	app.assetBlueprint = api.NewAssetBlueprint(app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager)
 	app.assetBlueprint.ConfigureMartini(app.martiniClassic)
 
 	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
@@ -187,6 +183,6 @@ func (app *AppContext) initApis() error {
 }
 
 func (app *AppContext) Stop() {
-	app.rendererManager.Stop()
+	app.agentManager.Stop()
 	app.cassandraManager.Stop()
 }
