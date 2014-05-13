@@ -19,8 +19,8 @@ import (
 // TODO: Write test for animated gif.
 
 func TestRenderJpegPreview(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Short Tests Only: TestRenderJpegPreview")
+	if !testutils.Integration() || testing.Short() {
+		t.Skip("Skipping integration test TestRenderJpegPreview")
 		return
 	}
 

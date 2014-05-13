@@ -11,8 +11,8 @@ import (
 )
 
 func TestConvertDocxToPdf(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Short Tests Only: TestConvertDocxToPdf")
+	if !testutils.Integration() || testing.Short() {
+		t.Skip("Skipping integration test TestConvertDocxToPdf")
 		return
 	}
 
