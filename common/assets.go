@@ -1,8 +1,8 @@
 package common
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
+	"github.com/ngerakines/preview/util"
 	"log"
 	"time"
 )
@@ -82,17 +82,21 @@ var (
 )
 
 // NewSourceAsset creates a new source asset, filling in default values for everything but the id, type and location.
-func NewSourceAsset(id, idType string) *SourceAsset {
+func NewSourceAsset(id, idType string) (*SourceAsset, error) {
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UnixNano()
 	sa := new(SourceAsset)
-	sa.Id = id
+	sa.Id = uuid
 	sa.IdType = idType
 	sa.CreatedAt = now
 	sa.CreatedBy = ""
 	sa.UpdatedAt = now
 	sa.UpdatedBy = ""
 	sa.Attributes = make([]Attribute, 0, 0)
-	return sa
+	return sa, nil
 }
 
 func newSourceAssetFromJson(payload []byte) (*SourceAsset, error) {
@@ -106,10 +110,14 @@ func newSourceAssetFromJson(payload []byte) (*SourceAsset, error) {
 }
 
 // NewGeneratedAssetFromSourceAsset creates a new generated asset from a given source asset and template, filling in everything but location.
-func NewGeneratedAssetFromSourceAsset(sourceAsset *SourceAsset, template *Template, location string) *GeneratedAsset {
+func NewGeneratedAssetFromSourceAsset(sourceAsset *SourceAsset, template *Template, location string) (*GeneratedAsset, error) {
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UnixNano()
 	ga := new(GeneratedAsset)
-	ga.Id = uuid.New()
+	ga.Id = uuid
 	ga.SourceAssetId = sourceAsset.Id
 	ga.SourceAssetType = sourceAsset.IdType
 	ga.TemplateId = template.Id
@@ -120,7 +128,7 @@ func NewGeneratedAssetFromSourceAsset(sourceAsset *SourceAsset, template *Templa
 	ga.UpdatedAt = now
 	ga.UpdatedBy = ""
 	ga.Attributes = make([]Attribute, 0, 0)
-	return ga
+	return ga, nil
 }
 
 func newGeneratedAssetFromJson(payload []byte) (*GeneratedAsset, error) {

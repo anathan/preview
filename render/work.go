@@ -53,7 +53,11 @@ func NewRenderAgentManager(
 }
 
 func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType string, size int64) {
-	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	sourceAsset, err := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	if err != nil {
+		panic("crap")
+		return
+	}
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(size, 10)})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{url})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{fileType})
@@ -69,12 +73,20 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
 		if err == nil {
 			location := fmt.Sprintf("local:///%s/%s/0", sourceAssetId, placeholderSize)
-			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			if err != nil {
+				panic("crap")
+				return
+			}
 			ga.Status = status
 			agentManager.generatedAssetStorageManager.Store(ga)
 		} else {
 			location := fmt.Sprintf("local:///%s/pdf", sourceAssetId)
-			ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
+			if err != nil {
+				panic("crap")
+				return
+			}
 			ga.Status = status
 			agentManager.generatedAssetStorageManager.Store(ga)
 		}

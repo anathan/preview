@@ -1,7 +1,6 @@
 package render
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
@@ -36,13 +35,18 @@ func TestRenderJpegPreview(t *testing.T) {
 	testListener := make(RenderStatusChannel, 25)
 	rm.AddListener(testListener)
 
-	sourceAssetId := uuid.New()
+	sourceAssetId, err := util.NewUuid()
+	if err != nil {
+		t.Errorf("Unexpected error returned: %s", err)
+		return
+	}
+
 	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{"12345"})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{fileUrl("test-data", "wallpaper-641916.jpg")})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"jpg"})
 
-	err := sasm.Store(sourceAsset)
+	err = sasm.Store(sourceAsset)
 	if err != nil {
 		t.Errorf("Unexpected error returned: %s", err)
 		return

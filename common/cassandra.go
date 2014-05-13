@@ -16,19 +16,24 @@ type CassandraManager struct {
 CREATE KEYSPACE preview
   WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };
 USE preview;
-CREATE TABLE IF NOT EXISTS generated_assets (id varchar, source varchar, status varchar, template_id varchar, message blob, PRIMARY KEY (id));
-CREATE TABLE IF NOT EXISTS active_generated_assets (id varchar PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS waiting_generated_assets (id varchar, source varchar, template varchar, state varchar, PRIMARY KEY(template, source, id));
+CREATE TABLE IF NOT EXISTS generated_assets (id timeuuid, source varchar, status varchar, template_id varchar, message blob, PRIMARY KEY (id));
+CREATE TABLE IF NOT EXISTS active_generated_assets (id timeuuid PRIMARY KEY);
+
+CREATE TABLE IF NOT EXISTS waiting_generated_assets (id timeuuid, source varchar, template varchar, PRIMARY KEY(template, id, source));
+
+
+CREATE INDEX IF NOT EXISTS ON waiting_generated_assets (insertion_time);
+
 CREATE INDEX IF NOT EXISTS ON generated_assets (source);
 CREATE INDEX IF NOT EXISTS ON generated_assets (status);
 CREATE INDEX IF NOT EXISTS ON generated_assets (template_id);
 CREATE TABLE IF NOT EXISTS source_assets (id varchar, type varchar, message blob, PRIMARY KEY (id, type));
 CREATE INDEX IF NOT EXISTS ON source_assets (type);
 
-TRUNCATE preview.source_assets;
-TRUNCATE preview.generated_assets;
-TRUNCATE preview.active_generated_assets;
-TRUNCATE preview.waiting_generated_assets;
+TRUNCATE source_assets;
+TRUNCATE generated_assets;
+TRUNCATE active_generated_assets;
+TRUNCATE waiting_generated_assets;
 
 */
 
@@ -250,9 +255,9 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindWorkForService(serviceNam
 func (gasm *cassandraGeneratedAssetStorageManager) getWaitingAssets(group string, count int) ([]string, error) {
 	results := make([]string, 0, 0)
 
-	iter := gasm.cassandraManager.Session().Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ? LIMIT ?`, group, count).Consistency(gocql.One).Iter()
+	iter := gasm.cassandraManager.Session().Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ?`, group).PageSize(count * 3).Consistency(gocql.One).Iter()
 	var generatedAssetId string
-	for iter.Scan(&generatedAssetId) {
+	for iter.Scan(&generatedAssetId) && len(results) <= count {
 		results = append(results, generatedAssetId)
 		log.Println("waiting_generated_assets from cassandra", generatedAssetId)
 	}

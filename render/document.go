@@ -2,9 +2,9 @@ package render
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/ngerakines/preview/common"
+	"github.com/ngerakines/preview/util"
 	"io/ioutil"
 	"log"
 	"os"
@@ -188,7 +188,12 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	}
 	pdfFileSize := fi.Size()
 
-	pdfSourceAsset := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
+	pdfSourceAsset, err := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
+	if err != nil {
+		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+		return
+	}
+
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(pdfFileSize, 10)})
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributePages, []string{strconv.Itoa(pages)})
 	pdfSourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{generatedAsset.Location})
@@ -214,7 +219,11 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 			}
 			// TODO: Update simple blueprint and image magick render agent to use this url structure.
 			location := fmt.Sprintf("local:///%s/%s/%d", sourceAsset.Id, placeholderSize, page)
-			pdfGeneratedAsset := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
+			pdfGeneratedAsset, err := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
+			if err != nil {
+				statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+				return
+			}
 			pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
 			log.Println("pdfGeneratedAsset", pdfGeneratedAsset)
 			renderAgent.gasm.Store(pdfGeneratedAsset)
@@ -335,8 +344,12 @@ func (renderAgent *documentRenderAgent) commitStatus(id string, existingAttribut
 }
 
 func (renderAgent *documentRenderAgent) createTemporaryDestinationDirectory() (string, error) {
-	tmpPath := filepath.Join(renderAgent.tempFileBasePath, uuid.New())
-	err := os.MkdirAll(tmpPath, 0777)
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return "", err
+	}
+	tmpPath := filepath.Join(renderAgent.tempFileBasePath, uuid)
+	err = os.MkdirAll(tmpPath, 0777)
 	if err != nil {
 		log.Println("error creating tmp dir", err)
 		return "", err

@@ -1,8 +1,8 @@
 package common
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
+	"github.com/ngerakines/preview/util"
 	"io"
 	"log"
 	"net/http"
@@ -51,10 +51,14 @@ func (downloader *defaultDownloader) handleLocal(url string) (TemporaryFile, err
 	log.Println("Attempting to download file", url[8:])
 	path := filepath.Join(downloader.localStoragePath, url[8:])
 
-	newPath := filepath.Join(downloader.basePath, uuid.New())
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
+	newPath := filepath.Join(downloader.basePath, uuid)
 
 	newPathDir := filepath.Dir(newPath)
-	err := os.MkdirAll(newPathDir, 0777)
+	err = os.MkdirAll(newPathDir, 0777)
 	if err != nil {
 		log.Println("error copying file:", err.Error())
 		return nil, err
@@ -76,10 +80,15 @@ func (downloader *defaultDownloader) handleFile(url string) (TemporaryFile, erro
 	path := url[7:]
 	log.Println("actual path", path)
 
-	newPath := filepath.Join(downloader.basePath, uuid.New())
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
+
+	newPath := filepath.Join(downloader.basePath, uuid)
 
 	newPathDir := filepath.Dir(newPath)
-	err := os.MkdirAll(newPathDir, 0777)
+	err = os.MkdirAll(newPathDir, 0777)
 	if err != nil {
 		log.Println("error copying file:", err.Error())
 		return nil, err
@@ -96,7 +105,11 @@ func (downloader *defaultDownloader) handleFile(url string) (TemporaryFile, erro
 }
 
 func (downloader *defaultDownloader) handleHttp(url string) (TemporaryFile, error) {
-	newPath := filepath.Join(downloader.basePath, uuid.New())
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
+	newPath := filepath.Join(downloader.basePath, uuid)
 
 	newPathDir := filepath.Dir(newPath)
 	os.MkdirAll(newPathDir, 0777)
