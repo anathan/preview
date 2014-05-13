@@ -202,55 +202,101 @@ func (blueprint *simpleBlueprint) handlePreviewInfoRequest(fileIds []string) ([]
 	}
 
 	for _, fileId := range fileIds {
-		collection := &previewInfoCollection{}
-		collection.FileId = fileId
-
-		sourceAssets, err := blueprint.sourceAssetStorageManager.FindBySourceAssetId(fileId)
-		if err != nil {
-			return nil, err
-		}
-		fileType := blueprint.getFileType(sourceAssets)
-
-		generatedAssets, err := blueprint.generatedAssetStorageManager.FindBySourceAssetId(fileId)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, generatedAsset := range generatedAssets {
-			templateTuple, hasTemplateTuple := templates[generatedAsset.TemplateId]
-			if hasTemplateTuple {
-				switch templateTuple.placeholderSize {
-				case common.PlaceholderSizeSmall:
-					collection.Small = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize)
-				case common.PlaceholderSizeMedium:
-					collection.Medium = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize)
-				case common.PlaceholderSizeLarge:
-					collection.Large = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize)
-				case common.PlaceholderSizeJumbo:
-					collection.Jumbo = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize)
-				}
+		sourceAsset, err := blueprint.getOriginSourceAsset(fileId)
+		if err == nil {
+			fileType, err := common.GetFirstAttribute(sourceAsset, common.SourceAssetAttributeType)
+			if err != nil {
+				fileType = "unknown"
 			}
-		}
 
-		if collection.Small == nil {
-			collection.Small = blueprint.getPlaceholder(fileType, common.PlaceholderSizeSmall)
-		}
-		if collection.Medium == nil {
-			collection.Medium = blueprint.getPlaceholder(fileType, common.PlaceholderSizeMedium)
-		}
-		if collection.Large == nil {
-			collection.Large = blueprint.getPlaceholder(fileType, common.PlaceholderSizeLarge)
-		}
-		if collection.Jumbo == nil {
-			collection.Jumbo = blueprint.getPlaceholder(fileType, common.PlaceholderSizeJumbo)
-		}
+			generatedAssets, err := blueprint.generatedAssetStorageManager.FindBySourceAssetId(fileId)
+			if err != nil {
+				return nil, err
+			}
+			log.Println("generated assets for ", fileId, ":", generatedAssets)
 
-		collections = append(collections, collection)
+			pagedGeneratedAssetSet := blueprint.groupGeneratedAssetsByPage(generatedAssets)
+			for page, pagedGeneratedAssets := range pagedGeneratedAssetSet {
+				collection := &previewInfoCollection{}
+				collection.FileId = fileId
+				collection.Page = page
+
+				for _, generatedAsset := range pagedGeneratedAssets {
+					templateTuple, hasTemplateTuple := templates[generatedAsset.TemplateId]
+					if hasTemplateTuple {
+						switch templateTuple.placeholderSize {
+						case common.PlaceholderSizeSmall:
+							collection.Small = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize, page)
+						case common.PlaceholderSizeMedium:
+							collection.Medium = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize, page)
+						case common.PlaceholderSizeLarge:
+							collection.Large = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize, page)
+						case common.PlaceholderSizeJumbo:
+							collection.Jumbo = blueprint.getPreviewImage(generatedAsset, fileType, templateTuple.placeholderSize, page)
+						}
+					}
+				}
+				if collection.Small == nil {
+					collection.Small = blueprint.getPlaceholder(fileType, common.PlaceholderSizeSmall, page)
+				}
+				if collection.Medium == nil {
+					collection.Medium = blueprint.getPlaceholder(fileType, common.PlaceholderSizeMedium, page)
+				}
+				if collection.Large == nil {
+					collection.Large = blueprint.getPlaceholder(fileType, common.PlaceholderSizeLarge, page)
+				}
+				if collection.Jumbo == nil {
+					collection.Jumbo = blueprint.getPlaceholder(fileType, common.PlaceholderSizeJumbo, page)
+				}
+
+				collections = append(collections, collection)
+			}
+		} else {
+			collection := &previewInfoCollection{}
+			collection.FileId = fileId
+			collection.Page = 0
+			if collection.Small == nil {
+				collection.Small = blueprint.getPlaceholder("unknown", common.PlaceholderSizeSmall, 0)
+			}
+			if collection.Medium == nil {
+				collection.Medium = blueprint.getPlaceholder("unknown", common.PlaceholderSizeMedium, 0)
+			}
+			if collection.Large == nil {
+				collection.Large = blueprint.getPlaceholder("unknown", common.PlaceholderSizeLarge, 0)
+			}
+			if collection.Jumbo == nil {
+				collection.Jumbo = blueprint.getPlaceholder("unknown", common.PlaceholderSizeJumbo, 0)
+			}
+
+			collections = append(collections, collection)
+		}
 	}
 
 	response := &previewInfoResponse{"1", collections}
 
 	return json.Marshal(response)
+}
+
+func (blueprint *simpleBlueprint) groupGeneratedAssetsByPage(generatedAssets []*common.GeneratedAsset) map[int32][]*common.GeneratedAsset {
+	results := make(map[int32][]*common.GeneratedAsset)
+	for _, generatedAsset := range generatedAssets {
+		var page int32 = 0
+
+		pageValue, err := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
+		if err == nil {
+			parsedInt, err := strconv.ParseInt(pageValue, 10, 32)
+			if err == nil {
+				page = int32(parsedInt)
+			}
+		}
+		generatedAssetsForPage, hasGeneratedAssetsForPage := results[page]
+		if !hasGeneratedAssetsForPage {
+			generatedAssetsForPage = make([]*common.GeneratedAsset, 0, 0)
+		}
+		generatedAssetsForPage = append(generatedAssetsForPage, generatedAsset)
+		results[page] = generatedAssetsForPage
+	}
+	return results
 }
 
 func (blueprint *simpleBlueprint) scrubUrl(location string) string {
@@ -264,7 +310,7 @@ func (blueprint *simpleBlueprint) scrubUrl(location string) string {
 		log.Println("about to split location", location)
 		parts := strings.Split(location[9:], "/")
 		log.Println("location split into", parts)
-		return blueprint.edgeContentHost + "/local/" + parts[0] + "/" + parts[1]
+		return blueprint.edgeContentHost + "/asset/" + parts[0] + "/" + parts[1] + "/" + parts[2]
 	}
 	return location
 }
@@ -287,23 +333,23 @@ func (blueprint *simpleBlueprint) templatePlaceholderSize(template *common.Templ
 	return placeholderSize, nil
 }
 
-func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.GeneratedAsset, fileType, placeholderSize string) *imageInfo {
+func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.GeneratedAsset, fileType, placeholderSize string, page int32) *imageInfo {
 	log.Println("Building preview image for", generatedAsset)
 	if generatedAsset.Status == common.GeneratedAssetStatusComplete {
-		return &imageInfo{blueprint.scrubUrl(generatedAsset.Location), 200, 200, 0, true, true}
+		return &imageInfo{blueprint.scrubUrl(generatedAsset.Location), 200, 200, 0, true, false, page}
 	}
 	if strings.HasPrefix(generatedAsset.Status, common.GeneratedAssetStatusFailed) {
 		// NKG: If the job failed, then before we return the placeholder, we set the "isFinal" field.
-		placeholder := blueprint.getPlaceholder(fileType, placeholderSize)
+		placeholder := blueprint.getPlaceholder(fileType, placeholderSize, page)
 		placeholder.IsFinal = true
 		return placeholder
 	}
-	return blueprint.getPlaceholder(fileType, placeholderSize)
+	return blueprint.getPlaceholder(fileType, placeholderSize, page)
 }
 
-func (blueprint *simpleBlueprint) getPlaceholder(fileType, placeholderSize string) *imageInfo {
+func (blueprint *simpleBlueprint) getPlaceholder(fileType, placeholderSize string, page int32) *imageInfo {
 	placeholder := blueprint.placeholderManager.Url(fileType, placeholderSize)
-	return &imageInfo{blueprint.edgeContentHost + "/static" + placeholder.Url, 200, 200, 0, false, false}
+	return &imageInfo{blueprint.edgeContentHost + "/static" + placeholder.Url, 200, 200, 0, false, false, page}
 }
 
 func (blueprint *simpleBlueprint) getFileType(sourceAssets []*common.SourceAsset) string {
@@ -317,4 +363,17 @@ func (blueprint *simpleBlueprint) getFileType(sourceAssets []*common.SourceAsset
 		}
 	}
 	return common.DefaultPlaceholderType
+}
+
+func (blueprint *simpleBlueprint) getOriginSourceAsset(generatedAssetId string) (*common.SourceAsset, error) {
+	sourceAssets, err := blueprint.sourceAssetStorageManager.FindBySourceAssetId(generatedAssetId)
+	if err != nil {
+		return nil, err
+	}
+	for _, sourceAsset := range sourceAssets {
+		if sourceAsset.IdType == common.SourceAssetTypeOrigin {
+			return sourceAsset, nil
+		}
+	}
+	return nil, common.ErrorNoSourceAssetsFoundForId
 }
