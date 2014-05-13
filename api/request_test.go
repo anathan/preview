@@ -48,3 +48,31 @@ func TestNewGeneratePreviewRequestFromTextMissingSize(t *testing.T) {
 		t.Errorf("Invalid error returned, should be 'PRVCOM5': %q", err.Error())
 	}
 }
+
+func TestJsonParsing(t *testing.T) {
+	example := `{
+    "version": 1,
+    "files": [
+        {
+            "file_id": "abcd1234",
+            "url": "http://ngerakines.me/resume.pdf",
+            "size": 12345,
+            "type": "pdf"
+        },
+        {
+            "file_id": "abcd1235",
+            "url": "http://ngerakines.me/ngerakines.png",
+            "size": 12346,
+            "type": "png"
+        }
+    ]
+}`
+	gprs, err := newGeneratePreviewRequestFromJson(example)
+	if err != nil {
+		t.Error("Unexpected error parsing json:", err)
+		return
+	}
+	if len(gprs) != 2 {
+		t.Error("Expected one generate preview request but got", len(gprs))
+	}
+}

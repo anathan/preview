@@ -60,21 +60,21 @@ func (blueprint *simpleBlueprint) GeneratePreviewHandler(res http.ResponseWriter
 	if req.Method != "PUT" {
 		// TODO: Make sure this is the correct status code being returned.
 		res.Header().Set("Content-Length", "0")
-		res.WriteHeader(500)
+		res.WriteHeader(400)
 		return
 	}
 
 	if !strings.HasPrefix(req.URL.Path, blueprint.buildUrl("/v1/preview")) {
 		// TODO: Make sure this is the correct status code being returned.
 		res.Header().Set("Content-Length", "0")
-		res.WriteHeader(500)
+		res.WriteHeader(400)
 		return
 	}
 
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		res.Header().Set("Content-Length", "0")
-		res.WriteHeader(500)
+		res.WriteHeader(400)
 		return
 	}
 	defer req.Body.Close()
@@ -84,7 +84,7 @@ func (blueprint *simpleBlueprint) GeneratePreviewHandler(res http.ResponseWriter
 		gprs, err := newGeneratePreviewRequestFromText(id, string(body))
 		if err != nil {
 			res.Header().Set("Content-Length", "0")
-			res.WriteHeader(500)
+			res.WriteHeader(400)
 			return
 		}
 		blueprint.handleGeneratePreviewRequest(gprs)
@@ -92,14 +92,14 @@ func (blueprint *simpleBlueprint) GeneratePreviewHandler(res http.ResponseWriter
 		gprs, err := newGeneratePreviewRequestFromJson(string(body))
 		if err != nil {
 			res.Header().Set("Content-Length", "0")
-			res.WriteHeader(500)
+			res.WriteHeader(400)
 			return
 		}
 		blueprint.handleGeneratePreviewRequest(gprs)
 	}
 
 	res.Header().Set("Content-Length", "0")
-	res.WriteHeader(200)
+	res.WriteHeader(202)
 }
 
 func (blueprint *simpleBlueprint) PreviewInfoHandler(res http.ResponseWriter, req *http.Request) {
@@ -202,8 +202,6 @@ func (blueprint *simpleBlueprint) handlePreviewInfoRequest(fileIds []string) ([]
 	}
 
 	for _, fileId := range fileIds {
-		log.Println("Creating collection")
-
 		collection := &previewInfoCollection{}
 		collection.FileId = fileId
 

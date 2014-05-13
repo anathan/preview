@@ -53,7 +53,7 @@ func TestBasicIntegration(t *testing.T) {
 		req, _ := http.NewRequest("PUT", "/api/v1/preview/"+sourceAssetId, strings.NewReader(composeTextPayload("jpg", fileUrl("../test-data", "wallpaper-641916.jpg"), "252990")))
 		previewApp.martiniClassic.ServeHTTP(res, req)
 
-		if res.Code != 200 {
+		if res.Code != 202 {
 			t.Errorf("Invalid response: %d", res.Code)
 			return
 		}

@@ -5,7 +5,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/ngerakines/preview/util"
-	_ "io/ioutil"
 	"log"
 	"net/http"
 	"os"
