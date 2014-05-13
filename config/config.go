@@ -80,6 +80,8 @@ type UploaderAppConfig interface {
 
 type DownloaderAppConfig interface {
 	BasePath() string
+	TramEnabled() bool
+	TramHosts() ([]string, error)
 }
 
 func LoadAppConfig(givenPath string) (AppConfig, error) {

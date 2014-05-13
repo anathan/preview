@@ -69,7 +69,9 @@ type userUploaderAppConfig struct {
 }
 
 type userDownloaderAppConfig struct {
-	basePath string
+	basePath    string
+	tramEnabled bool
+	tramHosts   []string
 }
 
 func NewUserAppConfig(content []byte) (AppConfig, error) {
@@ -370,6 +372,17 @@ func newUserDownloaderAppConfig(m map[string]interface{}) (DownloaderAppConfig, 
 		return nil, err
 	}
 
+	config.tramEnabled, err = parseBool("downloader", "tramEnabled", data)
+	if err != nil {
+		return nil, err
+	}
+	if config.tramEnabled {
+		config.tramHosts, err = parseStringArray("downloader", "tramHosts", data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return config, nil
 }
 
@@ -505,6 +518,16 @@ func (c *userUploaderAppConfig) S3Buckets() ([]string, error) {
 
 func (c *userDownloaderAppConfig) BasePath() string {
 	return c.basePath
+}
+
+func (c *userDownloaderAppConfig) TramEnabled() bool {
+	return c.tramEnabled
+}
+func (c *userDownloaderAppConfig) TramHosts() ([]string, error) {
+	if c.TramEnabled() {
+		return c.tramHosts, nil
+	}
+	return nil, appConfigError{"Tram support is not enabled."}
 }
 
 func (c *userCommonAppConfig) NodeId() string {
