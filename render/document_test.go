@@ -32,7 +32,11 @@ func TestConvertDocxToPdf(t *testing.T) {
 		t.Errorf("Unexpected error returned: %s", err)
 		return
 	}
-	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	sourceAsset, err := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	if err != nil {
+		t.Errorf("Unexpected error returned: %s", err)
+		return
+	}
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{"12345"})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{fileUrl("test-data", "ChefConf2014schedule.docx")})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"docx"})
@@ -50,7 +54,11 @@ func TestConvertDocxToPdf(t *testing.T) {
 	}
 	for _, template := range templates {
 		log.Println("Found template", template.Id, "with service", template.Renderer)
-		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, fmt.Sprintf("local:///%s/pdf", sourceAssetId))
+		ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, fmt.Sprintf("local:///%s/pdf", sourceAssetId))
+		if err != nil {
+			t.Errorf("Unexpected error returned: %s", err)
+			return
+		}
 		gasm.Store(ga)
 	}
 	time.Sleep(10 * time.Second)

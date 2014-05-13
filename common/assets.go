@@ -83,13 +83,9 @@ var (
 
 // NewSourceAsset creates a new source asset, filling in default values for everything but the id, type and location.
 func NewSourceAsset(id, idType string) (*SourceAsset, error) {
-	uuid, err := util.NewUuid()
-	if err != nil {
-		return nil, err
-	}
 	now := time.Now().UnixNano()
 	sa := new(SourceAsset)
-	sa.Id = uuid
+	sa.Id = id
 	sa.IdType = idType
 	sa.CreatedAt = now
 	sa.CreatedBy = ""

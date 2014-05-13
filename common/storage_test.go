@@ -8,7 +8,12 @@ import (
 func TestInMemorySourceAssetStorage(t *testing.T) {
 	sasm := NewSourceAssetStorageManager()
 
-	err := sasm.Store(NewSourceAsset("4AE594A7-A48E-45E4-A5E1-4533E50BBDA3", SourceAssetTypeOrigin))
+	sourceAsset, err := NewSourceAsset("4AE594A7-A48E-45E4-A5E1-4533E50BBDA3", SourceAssetTypeOrigin)
+	if err != nil {
+		t.Errorf("Unexpected error returned: %s", err)
+		return
+	}
+	err = sasm.Store(sourceAsset)
 	if err != nil {
 		t.Errorf("Unexpected error returned: %s", err)
 		return
@@ -20,7 +25,7 @@ func TestInMemorySourceAssetStorage(t *testing.T) {
 		return
 	}
 	if len(results) != 1 {
-		t.Error("One result expected")
+		t.Error("One result expected:", len(results))
 		return
 	}
 	if results[0].Id != "4AE594A7-A48E-45E4-A5E1-4533E50BBDA3" {

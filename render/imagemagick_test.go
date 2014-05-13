@@ -41,7 +41,11 @@ func TestRenderJpegPreview(t *testing.T) {
 		return
 	}
 
-	sourceAsset := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	sourceAsset, err := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
+	if err != nil {
+		t.Errorf("Unexpected error returned: %s", err)
+		return
+	}
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{"12345"})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSource, []string{fileUrl("test-data", "wallpaper-641916.jpg")})
 	sourceAsset.AddAttribute(common.SourceAssetAttributeType, []string{"jpg"})
@@ -62,7 +66,11 @@ func TestRenderJpegPreview(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		ga := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, fmt.Sprintf("local:///%s/%s", sourceAssetId, placeholderSize))
+		ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, fmt.Sprintf("local:///%s/%s", sourceAssetId, placeholderSize))
+		if err != nil {
+			t.Errorf("Unexpected error returned: %s", err)
+			return
+		}
 		gasm.Store(ga)
 	}
 	if assertGeneratedAssetCount(sourceAssetId, gasm, common.GeneratedAssetStatusComplete, 4) {

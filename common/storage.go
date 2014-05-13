@@ -25,11 +25,6 @@ type TemplateManager interface {
 	FindByRenderService(renderService string) ([]*Template, error)
 }
 
-type SourceAssetKey struct {
-	origin          string
-	sourceAssetType string
-}
-
 type inMemorySourceAssetStorageManager struct {
 	sourceAssets []*SourceAsset
 }
