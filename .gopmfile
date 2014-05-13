@@ -1,11 +1,12 @@
 [deps]
-github.com/docopt/docopt-go = 
-github.com/codegangsta/martini = 
+https://github.com/docopt/docopt.go =
+github.com/ngerakines/preview = 
+github.com/streadway/simpleuuid = 
 code.google.com/p/go-uuid = 
+github.com/codegangsta/martini = 
 github.com/gocql/gocql = 
 github.com/ngerakines/codederror = 
 github.com/ngerakines/ketama = 
 
 [res]
-include = 
-
+include =
