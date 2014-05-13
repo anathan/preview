@@ -26,6 +26,7 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
          "image":["jpg", "jpeg", "png", "gif"],
          "document":["pdf", "doc", "docx"]
       },
+      "localAssetStoragePath":"` + basePathFunc("assets") + `",
       "nodeId":"E876F147E331"
    },
    "http":{
@@ -39,7 +40,7 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
       "count":16,
       "basePath":"` + basePathFunc("documentRenderAgentTmp") + `"
    },
-   "imageMagickRenderer":{
+   "imageMagickRenderAgent":{
       "enabled":true,
       "count":16,
       "supportedFileTypes":{
@@ -55,11 +56,10 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
       "edgeBaseUrl":"http://localhost:8080"
    },
    "assetApi":{
-      "basePath":"` + basePathFunc("assets") + `"
+      "enabled":true
    },
    "uploader":{
-      "engine":"local",
-      "localBasePath":"` + basePathFunc("assets") + `"
+      "engine":"local"
    },
    "downloader":{
       "basePath":"` + basePathFunc("cache") + `",

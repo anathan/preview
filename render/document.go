@@ -137,7 +137,7 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 
 	// 4. Fetch the source asset file
 	urls := sourceAsset.GetAttribute(common.SourceAssetAttributeSource)
-	sourceFile, err := renderAgent.tryDownload(urls)
+	sourceFile, err := renderAgent.tryDownload(urls, common.SourceAssetSource(sourceAsset))
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoDownloadUrlsWork), nil}
 		return
@@ -292,9 +292,9 @@ func (renderAgent *documentRenderAgent) getPdfPageCount(file string) (int, error
 	return 0, nil
 }
 
-func (renderAgent *documentRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
+func (renderAgent *documentRenderAgent) tryDownload(urls []string, source string) (common.TemporaryFile, error) {
 	for _, url := range urls {
-		tempFile, err := renderAgent.downloader.Download(url)
+		tempFile, err := renderAgent.downloader.Download(url, source)
 		if err == nil {
 			return tempFile, nil
 		}

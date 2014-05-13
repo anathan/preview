@@ -122,7 +122,7 @@ func setupTest(path string) (*RenderAgentManager, common.SourceAssetStorageManag
 	generatedAssetStorageManager := common.NewGeneratedAssetStorageManager(tm)
 
 	tfm := common.NewTemporaryFileManager()
-	downloader := common.NewDownloader(path, path, tfm)
+	downloader := common.NewDownloader(path, path, tfm, false, []string{})
 	uploader := common.NewLocalUploader(path)
 	rm := NewRenderAgentManager(sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm)
 
