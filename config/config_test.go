@@ -44,7 +44,7 @@ func initTempFileManager(path string) *tempFileManager {
 		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
 		"assetApi": {"basePath": "./", "enabled": true},
 		"uploader": {"engine": "s3", "s3Key": "foo", "s3Secret": "bar", "s3Host": "baz", "s3Buckets": ["previewa", "previewb"]},
-		"downloader": {"basePath": "./"}
+		"downloader": {"basePath": "./", "tramEnabled": false}
 		}`)
 	return fm
 }

@@ -2,11 +2,8 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
-	"math"
 	"reflect"
-	"strconv"
 )
 
 type userAppConfig struct {
@@ -69,7 +66,9 @@ type userUploaderAppConfig struct {
 }
 
 type userDownloaderAppConfig struct {
-	basePath string
+	basePath    string
+	tramEnabled bool
+	tramHosts   []string
 }
 
 func NewUserAppConfig(content []byte) (AppConfig, error) {
@@ -370,6 +369,17 @@ func newUserDownloaderAppConfig(m map[string]interface{}) (DownloaderAppConfig, 
 		return nil, err
 	}
 
+	config.tramEnabled, err = parseBool("downloader", "tramEnabled", data)
+	if err != nil {
+		return nil, err
+	}
+	if config.tramEnabled {
+		config.tramHosts, err = parseStringArray("downloader", "tramHosts", data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return config, nil
 }
 
@@ -507,6 +517,16 @@ func (c *userDownloaderAppConfig) BasePath() string {
 	return c.basePath
 }
 
+func (c *userDownloaderAppConfig) TramEnabled() bool {
+	return c.tramEnabled
+}
+func (c *userDownloaderAppConfig) TramHosts() ([]string, error) {
+	if c.TramEnabled() {
+		return c.tramHosts, nil
+	}
+	return nil, appConfigError{"Tram support is not enabled."}
+}
+
 func (c *userCommonAppConfig) NodeId() string {
 	return c.nodeId
 }
@@ -521,106 +541,4 @@ func (c *userCommonAppConfig) PlaceholderBasePath() string {
 
 func (c *userCommonAppConfig) PlaceholderGroups() map[string][]string {
 	return c.placeholderGroups
-}
-
-func parseConfigGroup(label string, data map[string]interface{}) (map[string]interface{}, error) {
-	group, hasGroup := data[label]
-	if !hasGroup {
-		return nil, appConfigError{"Missing " + label + " config"}
-	}
-	groupValue, ok := group.(map[string]interface{})
-	if !ok {
-		return nil, appConfigError{"Invalid " + label + " config"}
-	}
-	return groupValue, nil
-}
-
-func parseString(group, key string, data map[string]interface{}) (string, error) {
-	keyValue, hasKey := data[key]
-	if !hasKey {
-		return "", appConfigError{"Invalid " + group + " config: " + key + " attribute missing"}
-	}
-	keyStringValue, ok := keyValue.(string)
-	if !ok {
-		return "", appConfigError{"Invalid " + group + " config: " + key + " attribute not a string"}
-	}
-	return keyStringValue, nil
-}
-
-func parseBool(group, key string, data map[string]interface{}) (bool, error) {
-	keyValue, hasKey := data[key]
-	if !hasKey {
-		return false, appConfigError{"Invalid " + group + " config: " + key + " attribute missing"}
-	}
-	keyStringValue, ok := keyValue.(bool)
-	if !ok {
-		return false, appConfigError{"Invalid " + group + " config: " + key + " attribute not a bool"}
-	}
-	return keyStringValue, nil
-}
-
-func parseInt(group, key string, data map[string]interface{}) (int, error) {
-	keyValue, hasKey := data[key]
-	if !hasKey {
-		return 0, appConfigError{"Invalid " + group + " config: " + key + " attribute missing"}
-	}
-	keyStringValue, ok := keyValue.(float64)
-	if !ok {
-		return 0, appConfigError{"Invalid " + group + " config: " + key + " attribute not an int"}
-	}
-	return int(keyStringValue), nil
-}
-
-func parseStringArray(group, key string, data map[string]interface{}) ([]string, error) {
-	keyValue, hasKey := data[key]
-	if !hasKey {
-		return nil, appConfigError{"Invalid " + group + " config: " + key + " attribute missing"}
-	}
-	keyStringValue, ok := keyValue.([]interface{})
-	if !ok {
-		return nil, appConfigError{"Invalid " + group + " config: " + key + " attribute not a list of strings"}
-	}
-	results := make([]string, 0, 0)
-	for _, value := range keyStringValue {
-		valueValue, ok := value.(string)
-		if ok {
-			results = append(results, valueValue)
-		}
-	}
-	return results, nil
-}
-
-func getFloat(unk interface{}) (float64, error) {
-	if v_flt, ok := unk.(float64); ok {
-		return v_flt, nil
-	} else if v_int, ok := unk.(int); ok {
-		return float64(v_int), nil
-	} else if v_int, ok := unk.(int16); ok {
-		return float64(v_int), nil
-	} else if v_str, ok := unk.(string); ok {
-		v_flt, err := strconv.ParseFloat(v_str, 64)
-		if err == nil {
-			return v_flt, nil
-		}
-		return math.NaN(), err
-	} else if unk == nil {
-		return math.NaN(), errors.New("getFloat: unknown value is nil")
-	} else {
-		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
-	}
-}
-
-func getStringArray(unknown interface{}) ([]string, error) {
-	unknownData, ok := unknown.([]interface{})
-	if ok {
-		results := make([]string, 0, 0)
-		for _, value := range unknownData {
-			valueValue, ok := value.(string)
-			if ok {
-				results = append(results, valueValue)
-			}
-		}
-		return results, nil
-	}
-	return nil, appConfigError{"Data is not an array."}
 }

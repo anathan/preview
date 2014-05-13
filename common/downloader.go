@@ -2,10 +2,12 @@ package common
 
 import (
 	"fmt"
+	"github.com/ngerakines/ketama"
 	"github.com/ngerakines/preview/util"
 	"io"
 	"log"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,26 +16,38 @@ import (
 // Downloader structures retreive remote files and make them available locally.
 type Downloader interface {
 	// Download attempts to retreive a file with a given url and store it to a temporary file that is managed by a TemporaryFileManager.
-	Download(url string) (TemporaryFile, error)
+	Download(url, source string) (TemporaryFile, error)
 }
 
 type defaultDownloader struct {
 	basePath         string
 	localStoragePath string
 	tfm              TemporaryFileManager
+	tramEnabled      bool
+	tramHostRing     ketama.HashRing
 }
 
 // NewDownloader creates, configures and returns a new defaultDownloader.
-func NewDownloader(basePath, localStoragePath string, tfm TemporaryFileManager) Downloader {
+func NewDownloader(basePath, localStoragePath string, tfm TemporaryFileManager, tramEnabled bool, tramHosts []string) Downloader {
 	downloader := new(defaultDownloader)
 	downloader.basePath = basePath
 	downloader.localStoragePath = localStoragePath
 	downloader.tfm = tfm
+	downloader.tramEnabled = tramEnabled
+
+	if downloader.tramEnabled {
+		hashRing := ketama.NewRing(180)
+		for _, tramHost := range tramHosts {
+			hashRing.Add(tramHost, 1)
+		}
+		hashRing.Bake()
+		downloader.tramHostRing = hashRing
+	}
 	return downloader
 }
 
 // Download attempts to retreive a file with a given url and store it to a temporary file that is managed by a TemporaryFileManager.
-func (downloader *defaultDownloader) Download(url string) (TemporaryFile, error) {
+func (downloader *defaultDownloader) Download(url, source string) (TemporaryFile, error) {
 	log.Println("Attempting to download", url)
 	if strings.HasPrefix(url, "file://") {
 		return downloader.handleFile(url)
@@ -42,7 +56,7 @@ func (downloader *defaultDownloader) Download(url string) (TemporaryFile, error)
 		return downloader.handleLocal(url)
 	}
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-		return downloader.handleHttp(url)
+		return downloader.handleHttp(url, source)
 	}
 	return nil, ErrorNotImplemented
 }
@@ -104,7 +118,7 @@ func (downloader *defaultDownloader) handleFile(url string) (TemporaryFile, erro
 	return downloader.tfm.Create(newPath), nil
 }
 
-func (downloader *defaultDownloader) handleHttp(url string) (TemporaryFile, error) {
+func (downloader *defaultDownloader) handleHttp(url, source string) (TemporaryFile, error) {
 	uuid, err := util.NewUuid()
 	if err != nil {
 		return nil, err
@@ -133,6 +147,14 @@ func (downloader *defaultDownloader) handleHttp(url string) (TemporaryFile, erro
 	log.Println("Downloaded", n, "bytes to file", newPath)
 
 	return downloader.tfm.Create(newPath), nil
+}
+
+func (downloader *defaultDownloader) getHttpUrl(url, source string) string {
+	if downloader.tramEnabled {
+		tramHost := downloader.tramHostRing.Hash(source)
+		return fmt.Sprintf("http://%s/?url=%s&alias=%s", tramHost, neturl.QueryEscape(url), neturl.QueryEscape(source))
+	}
+	return url
 }
 
 // CopyFile copies a file from src to dst. If src and dst files exist, and are

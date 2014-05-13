@@ -7,19 +7,26 @@ import (
 )
 
 func NewDefaultAppConfig() (AppConfig, error) {
-	basePath := func(section string) string {
-		cacheDirectory := filepath.Join(util.Cwd(), ".cache", section)
+	return buildDefaultConfig(defaultBasePath)
+}
+
+func NewDefaultAppConfigWithBaseDirectory(root string) (AppConfig, error) {
+	return buildDefaultConfig(func(section string) string {
+		cacheDirectory := filepath.Join(root, ".cache", section)
 		os.MkdirAll(cacheDirectory, 00777)
 		return cacheDirectory
-	}
+	})
+}
+
+func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
 	config := `{
    "common": {
-      "placeholderBasePath":"` + basePath("placeholders") + `",
+      "placeholderBasePath":"` + basePathFunc("placeholders") + `",
       "placeholderGroups": {
          "image":["jpg", "jpeg", "png", "gif"],
          "document":["pdf", "doc", "docx"]
       },
-      "localAssetStoragePath":"` + basePath("assets") + `",
+      "localAssetStoragePath":"` + basePathFunc("assets") + `",
       "nodeId":"E876F147E331"
    },
    "http":{
@@ -31,7 +38,7 @@ func NewDefaultAppConfig() (AppConfig, error) {
    "documentRenderAgent":{
       "enabled":true,
       "count":16,
-      "basePath":"` + basePath("documentRenderAgentTmp") + `"
+      "basePath":"` + basePathFunc("documentRenderAgentTmp") + `"
    },
    "imageMagickRenderAgent":{
       "enabled":true,
@@ -55,63 +62,17 @@ func NewDefaultAppConfig() (AppConfig, error) {
       "engine":"local"
    },
    "downloader":{
-      "basePath":"` + basePath("cache") + `"
+      "basePath":"` + basePathFunc("cache") + `",
+      "tramEnabled": false
    }
 }`
 	return NewUserAppConfig([]byte(config))
 }
 
-func NewDefaultAppConfigWithBaseDirectory(root string) (AppConfig, error) {
-	basePath := func(section string) string {
-		cacheDirectory := filepath.Join(root, ".cache", section)
-		os.MkdirAll(cacheDirectory, 00777)
-		return cacheDirectory
-	}
-	config := `{
-   "common": {
-      "placeholderBasePath":"` + basePath("placeholders") + `",
-      "placeholderGroups": {
-         "image":["jpg", "jpeg", "png", "gif"],
-         "document":["pdf", "doc", "docx"]
-      },
-      "nodeId":"E876F147E331"
-   },
-   "http":{
-      "listen":":8080"
-   },
-   "storage":{
-      "engine":"memory"
-   },
-   "documentRenderAgent":{
-      "enabled":true,
-      "count":16,
-      "basePath":"` + basePath("documentRenderAgentTmp") + `"
-   },
-   "imageMagickRenderer":{
-      "enabled":true,
-      "count":16,
-      "supportedFileTypes":{
-         "jpg":33554432,
-         "jpeg":33554432,
-         "png":33554432,
-         "gif":33554432,
-         "pdf":33554432
-      }
-   },
-   "simpleApi":{
-      "enabled":true,
-      "edgeBaseUrl":"http://localhost:8080"
-   },
-   "assetApi":{
-      "basePath":"` + basePath("assets") + `"
-   },
-   "uploader":{
-      "engine":"local",
-      "localBasePath":"` + basePath("assets") + `"
-   },
-   "downloader":{
-      "basePath":"` + basePath("cache") + `"
-   }
-}`
-	return NewUserAppConfig([]byte(config))
+type basePath func(string) string
+
+func defaultBasePath(section string) string {
+	cacheDirectory := filepath.Join(util.Cwd(), ".cache", section)
+	os.MkdirAll(cacheDirectory, 00777)
+	return cacheDirectory
 }

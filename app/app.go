@@ -59,7 +59,15 @@ func (app *AppContext) Start() {
 func (app *AppContext) initTrams() error {
 	app.placeholderManager = common.NewPlaceholderManager(app.appConfig)
 	app.temporaryFileManager = common.NewTemporaryFileManager()
-	app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager)
+	if app.appConfig.Downloader().TramEnabled() {
+		tramHosts, err := app.appConfig.Downloader().TramHosts()
+		if err != nil {
+			panic(err)
+		}
+		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, true, tramHosts)
+	} else {
+		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, false, []string{})
+	}
 
 	switch app.appConfig.Uploader().Engine() {
 	case "s3":

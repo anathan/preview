@@ -130,7 +130,7 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 	template := templates[0]
 
 	urls := sourceAsset.GetAttribute(common.SourceAssetAttributeSource)
-	sourceFile, err := renderAgent.tryDownload(urls)
+	sourceFile, err := renderAgent.tryDownload(urls, common.SourceAssetSource(sourceAsset))
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNoDownloadUrlsWork), nil}
 		return
@@ -201,9 +201,9 @@ func (renderAgent *imageMagickRenderAgent) getSourceAsset(generatedAsset *common
 	return nil, common.ErrorNoSourceAssetsFoundForId
 }
 
-func (renderAgent *imageMagickRenderAgent) tryDownload(urls []string) (common.TemporaryFile, error) {
+func (renderAgent *imageMagickRenderAgent) tryDownload(urls []string, source string) (common.TemporaryFile, error) {
 	for _, url := range urls {
-		tempFile, err := renderAgent.downloader.Download(url)
+		tempFile, err := renderAgent.downloader.Download(url, source)
 		if err == nil {
 			return tempFile, nil
 		}

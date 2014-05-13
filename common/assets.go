@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ngerakines/preview/util"
 	"log"
 	"time"
@@ -217,4 +218,8 @@ func GetFirstAttribute(attributed Attributed, key string) (string, error) {
 	}
 	// TODO: write this code
 	return "", ErrorNotImplemented
+}
+
+func SourceAssetSource(sourceAsset *SourceAsset) string {
+	return fmt.Sprintf("%s:%s", sourceAsset.Id, sourceAsset.IdType)
 }
