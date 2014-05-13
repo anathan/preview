@@ -73,13 +73,13 @@ func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http
 	splitIndex := len(blueprint.base + "/")
 	parts := strings.Split(req.URL.Path[splitIndex:], "/")
 
-	if len(parts) != 2 {
+	if len(parts) != 3 {
 		res.Header().Set("Content-Length", "0")
 		res.WriteHeader(404)
 		return
 	}
 
-	action, path := blueprint.getAsset(parts[0], parts[1])
+	action, path := blueprint.getAsset(parts[0], parts[1], parts[2])
 	switch action {
 	case assetActionServeFile:
 		{
@@ -97,7 +97,7 @@ func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http
 	return
 }
 
-func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize string) (assetAction, string) {
+func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize, page string) (assetAction, string) {
 
 	generatedAssets, err := blueprint.generatedAssetStorageManager.FindBySourceAssetId(fileId)
 	if err != nil {
@@ -109,7 +109,7 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize string) (asset
 		for _, generatedAsset := range generatedAssets {
 			if generatedAsset.TemplateId == templateId {
 				if strings.HasPrefix(generatedAsset.Location, "local://") {
-					fullPath := filepath.Join(blueprint.localAssetStoragePath, fileId, placeholderSize)
+					fullPath := filepath.Join(blueprint.localAssetStoragePath, fileId, placeholderSize, page)
 					if util.CanLoadFile(fullPath) {
 						return assetActionServeFile, fullPath
 					}

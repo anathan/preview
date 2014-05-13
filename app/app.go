@@ -147,6 +147,11 @@ func (app *AppContext) initRenderers() error {
 			app.agentManager.AddImageMagickRenderAgent(app.downloader, app.uploader, 5)
 		}
 	}
+	if app.appConfig.DocumentRenderAgent().Enabled() {
+		for i := 0; i < app.appConfig.DocumentRenderAgent().Count(); i++ {
+			app.agentManager.AddDocumentRenderAgent(app.downloader, app.uploader, app.appConfig.DocumentRenderAgent().BasePath(), 5)
+		}
+	}
 	return nil
 }
 
