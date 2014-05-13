@@ -2,12 +2,16 @@ package app
 
 import (
 	"github.com/codegangsta/martini"
+	"github.com/etix/stoppableListener"
 	"github.com/ngerakines/preview/api"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
 	"github.com/ngerakines/preview/render"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"time"
 )
 
 type AppContext struct {
@@ -24,6 +28,7 @@ type AppContext struct {
 	assetBlueprint               api.Blueprint
 	staticBlueprint              api.Blueprint
 	adminBlueprint               api.Blueprint
+	listener                     *stoppableListener.StoppableListener
 	martiniClassic               *martini.ClassicMartini
 	cassandraManager             *common.CassandraManager
 }
@@ -53,7 +58,38 @@ func NewApp(appConfig config.AppConfig) (*AppContext, error) {
 }
 
 func (app *AppContext) Start() {
-	log.Fatal(http.ListenAndServe(app.appConfig.Http().Listen(), app.martiniClassic))
+	httpListener, err := net.Listen("tcp", app.appConfig.Http().Listen())
+	if err != nil {
+		panic(err)
+	}
+	app.listener = stoppableListener.Handle(httpListener)
+
+	http.Serve(app.listener, app.martiniClassic)
+
+	if app.listener.Stopped {
+		var alive int
+
+		/* Wait at most 5 seconds for the clients to disconnect */
+		for i := 0; i < 5; i++ {
+			/* Get the number of clients still connected */
+			alive = app.listener.ConnCount.Get()
+			if alive == 0 {
+				break
+			}
+			log.Printf("%d client(s) still connected…\n", alive)
+			time.Sleep(1 * time.Second)
+		}
+
+		alive = app.listener.ConnCount.Get()
+		if alive > 0 {
+			log.Fatalf("Server stopped after 5 seconds with %d client(s) still connected.", alive)
+		} else {
+			log.Println("Server stopped gracefully.")
+			os.Exit(0)
+		}
+	} else if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (app *AppContext) initTrams() error {
@@ -197,5 +233,8 @@ func (app *AppContext) initApis() error {
 
 func (app *AppContext) Stop() {
 	app.agentManager.Stop()
-	app.cassandraManager.Stop()
+	if app.cassandraManager != nil {
+		app.cassandraManager.Stop()
+	}
+	app.listener.Stop <- true
 }

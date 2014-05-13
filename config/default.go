@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/ngerakines/preview/util"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -66,6 +67,7 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
       "tramEnabled": false
    }
 }`
+	log.Println(config)
 	return NewUserAppConfig([]byte(config))
 }
 

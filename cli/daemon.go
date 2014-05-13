@@ -5,6 +5,8 @@ import (
 	"github.com/ngerakines/preview/app"
 	"github.com/ngerakines/preview/config"
 	"log"
+	"os"
+	"os/signal"
 )
 
 type DaemonCommand struct {
@@ -32,5 +34,13 @@ func (command *DaemonCommand) Execute() {
 		log.Fatal(err.Error())
 		return
 	}
+
+	k := make(chan os.Signal, 1)
+	signal.Notify(k, os.Interrupt, os.Kill)
+	go func() {
+		<-k
+		previewApp.Stop()
+	}()
+
 	previewApp.Start()
 }

@@ -89,8 +89,10 @@ func (cm *CassandraManager) Session() *gocql.Session {
 }
 
 func (cm *CassandraManager) Stop() {
-	if !cm.session.Closed() {
-		cm.session.Close()
+	if cm.session != nil {
+		if !cm.session.Closed() {
+			cm.session.Close()
+		}
 	}
 }
 
