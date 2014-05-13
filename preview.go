@@ -18,7 +18,7 @@ Options:
   --verbose        Verbose
   --config=<file>  The configuration file to use.`
 
-	arguments, _ := docopt.Parse(usage, nil, true, "v0.1.0", false)
+	arguments, _ := docopt.Parse(usage, nil, true, "0.1.1", false)
 
 	var command cli.PreviewCliCommand
 	switch cli.GetCommand(arguments) {
