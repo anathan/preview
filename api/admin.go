@@ -24,6 +24,15 @@ type temporaryFilesView struct {
 	Files map[string]int
 }
 
+type errorViewError struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
+
+type errorsView struct {
+	Errors []errorViewError `json:"errors"`
+}
+
 // NewAdminBlueprint creates a new adminBlueprint object.
 func NewAdminBlueprint(appConfig config.AppConfig, placeholderManager common.PlaceholderManager, temporaryFileManager common.TemporaryFileManager) *adminBlueprint {
 	blueprint := new(adminBlueprint)
@@ -39,6 +48,7 @@ func (blueprint *adminBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 	m.Get(blueprint.base+"/config", blueprint.configHandler)
 	m.Get(blueprint.base+"/placeholders", blueprint.placeholdersHandler)
 	m.Get(blueprint.base+"/temporaryFiles", blueprint.temporaryFilesHandler)
+	m.Get(blueprint.base+"/errors", blueprint.errorsHandler)
 	return nil
 }
 
@@ -69,16 +79,13 @@ func (blueprint *adminBlueprint) placeholdersHandler(res http.ResponseWriter, re
 	res.Write(body)
 }
 
-// PlaceholdersHandler is an http controller that exposes all of the placeholders in the common.PlaceholderManager as JSON.
+// errorsHandler is an http controller that exposes all of the errors in the common.AllErrors as JSON.
 func (blueprint *adminBlueprint) errorsHandler(res http.ResponseWriter, req *http.Request) {
-	view := new(placeholdersView)
-	view.Placeholders = make([]*common.Placeholder, 0, 0)
-	for _, fileType := range blueprint.placeholderManager.AllFileTypes() {
-		for _, placeholderSize := range common.DefaultPlaceholderSizes {
-			view.Placeholders = append(view.Placeholders, blueprint.placeholderManager.Url(fileType, placeholderSize))
-		}
+	view := new(errorsView)
+	view.Errors = make([]errorViewError, 0, 0)
+	for _, err := range common.AllErrors {
+		view.Errors = append(view.Errors, errorViewError{err.Error(), err.Description()})
 	}
-
 	body, err := json.Marshal(view)
 	if err != nil {
 		res.WriteHeader(500)
