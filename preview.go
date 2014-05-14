@@ -10,12 +10,13 @@ func main() {
 
 Usage: preview [--help --version --config=<file>]
        preview daemon [--help --version --config <file>]
-       preview render [--verbose...] <host> <file>...
+       preview render [--verbose... --verify] <host> <file>...
 
 Options:
   --help           Show this screen.
   --version        Show version.
   --verbose        Verbose
+  --verify         Verify that a generate preview request completes
   --config=<file>  The configuration file to use.`
 
 	arguments, _ := docopt.Parse(usage, nil, true, "0.1.1", false)
