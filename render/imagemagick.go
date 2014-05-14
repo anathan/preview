@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ngerakines/preview/common"
+	"github.com/ngerakines/preview/util"
 	"image"
 	"image/jpeg"
 	"log"
@@ -172,7 +173,7 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	fi, err := os.Stat(destination)
+	generatedAssetFileSize, err := util.FileSize(destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineFileSize), nil}
 		return
@@ -182,7 +183,7 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 		generatedAsset.AddAttribute("imageHeight", []string{strconv.Itoa(bounds.Max.X)}),
 		generatedAsset.AddAttribute("imageWidth", []string{strconv.Itoa(bounds.Max.Y)}),
 		// NKG: I'm sure this is going to break something.
-		generatedAsset.AddAttribute("fileSize", []string{strconv.FormatInt(fi.Size(), 10)}),
+		generatedAsset.AddAttribute("fileSize", []string{strconv.FormatInt(generatedAssetFileSize, 10)}),
 	}
 
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, newAttributes}

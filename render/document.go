@@ -181,12 +181,11 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	fi, err := os.Stat(destination)
+	pdfFileSize, err := util.FileSize(destination)
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineFileSize), nil}
 		return
 	}
-	pdfFileSize := fi.Size()
 
 	pdfSourceAsset, err := common.NewSourceAsset(sourceAsset.Id, common.SourceAssetTypePdf)
 	if err != nil {

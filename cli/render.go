@@ -115,24 +115,19 @@ func (command *RenderCommand) filesToSubmit() []string {
 	for _, file := range command.files {
 		shouldTry, path := command.absFilePath(file)
 		if shouldTry {
-			f, err := os.Open(path)
+			isDir, err := util.IsDirectory(path)
 			if err == nil {
-				defer f.Close()
-				fi, err := f.Stat()
-				if err == nil {
-					switch mode := fi.Mode(); {
-					case mode.IsDir():
-						subdirFiles, err := ioutil.ReadDir(path)
-						if err == nil {
-							for _, subdirFile := range subdirFiles {
-								if !subdirFile.IsDir() {
-									files = append(files, filepath.Join(path, subdirFile.Name()))
-								}
+				if isDir {
+					subdirFiles, err := ioutil.ReadDir(path)
+					if err == nil {
+						for _, subdirFile := range subdirFiles {
+							if !subdirFile.IsDir() {
+								files = append(files, filepath.Join(path, subdirFile.Name()))
 							}
 						}
-					case mode.IsRegular():
-						files = append(files, path)
 					}
+				} else {
+					files = append(files, path)
 				}
 			}
 		}

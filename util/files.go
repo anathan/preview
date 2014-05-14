@@ -12,6 +12,22 @@ func CanLoadFile(path string) bool {
 	return true
 }
 
+func FileSize(path string) (int64, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
+func IsDirectory(path string) (bool, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	return fi.IsDir(), nil
+}
+
 // Cwd returns the current working directory or panics.
 func Cwd() string {
 	pwd, err := os.Getwd()

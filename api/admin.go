@@ -69,6 +69,26 @@ func (blueprint *adminBlueprint) placeholdersHandler(res http.ResponseWriter, re
 	res.Write(body)
 }
 
+// PlaceholdersHandler is an http controller that exposes all of the placeholders in the common.PlaceholderManager as JSON.
+func (blueprint *adminBlueprint) errorsHandler(res http.ResponseWriter, req *http.Request) {
+	view := new(placeholdersView)
+	view.Placeholders = make([]*common.Placeholder, 0, 0)
+	for _, fileType := range blueprint.placeholderManager.AllFileTypes() {
+		for _, placeholderSize := range common.DefaultPlaceholderSizes {
+			view.Placeholders = append(view.Placeholders, blueprint.placeholderManager.Url(fileType, placeholderSize))
+		}
+	}
+
+	body, err := json.Marshal(view)
+	if err != nil {
+		res.WriteHeader(500)
+		return
+	}
+
+	res.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	res.Write(body)
+}
+
 // TemporaryFilesHandler is an http controller that exposes all of the temporary files tracked by a common.TemporaryFileManager as JSON.
 func (blueprint *adminBlueprint) temporaryFilesHandler(res http.ResponseWriter, req *http.Request) {
 	view := new(temporaryFilesView)
