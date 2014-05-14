@@ -75,7 +75,7 @@ func (command *RenderCommand) String() string {
 
 func (command *RenderCommand) Execute() {
 	pendingIds := make(map[string]bool)
-	for _, file := range command.files {
+	for _, file := range command.filesToSubmit() {
 		fileUrl := command.urlForFile(file)
 		if command.verbose > 0 {
 			log.Println("Peparing to send file", fileUrl)
@@ -108,6 +108,49 @@ func (command *RenderCommand) Execute() {
 			}
 		}
 	}
+}
+
+func (command *RenderCommand) filesToSubmit() []string {
+	files := make([]string, 0, 0)
+	for _, file := range command.files {
+		shouldTry, path := command.absFilePath(file)
+		if shouldTry {
+			f, err := os.Open(path)
+			if err == nil {
+				defer f.Close()
+				fi, err := f.Stat()
+				if err == nil {
+					switch mode := fi.Mode(); {
+					case mode.IsDir():
+						subdirFiles, err := ioutil.ReadDir(path)
+						if err == nil {
+							for _, subdirFile := range subdirFiles {
+								if !subdirFile.IsDir() {
+									files = append(files, filepath.Join(path, subdirFile.Name()))
+								}
+							}
+						}
+					case mode.IsRegular():
+						files = append(files, path)
+					}
+				}
+			}
+		}
+	}
+	return files
+}
+
+func (command *RenderCommand) absFilePath(file string) (bool, string) {
+	if strings.HasPrefix(file, "http://") || strings.HasPrefix(file, "https://") {
+		return false, ""
+	}
+	if strings.HasPrefix(file, "file://") {
+		return true, file[7:]
+	}
+	if strings.HasPrefix(file, "/") {
+		return true, file
+	}
+	return true, filepath.Join(util.Cwd(), file)
 }
 
 func (command *RenderCommand) urlForFile(file string) string {
