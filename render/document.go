@@ -246,14 +246,14 @@ func (renderAgent *documentRenderAgent) getSourceAsset(generatedAsset *common.Ge
 }
 
 func (renderAgent *documentRenderAgent) createPdf(source, destination string) error {
-	_, err := exec.LookPath("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+	_, err := exec.LookPath("soffice")
 	if err != nil {
 		log.Println("soffice command not found")
 		return err
 	}
 
 	// TODO: Make this path configurable.
-	cmd := exec.Command("/Applications/LibreOffice.app/Contents/MacOS/soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
+	cmd := exec.Command("soffice", "--headless", "--nologo", "--nofirststartwizard", "--convert-to", "pdf", source, "--outdir", destination)
 	log.Println(cmd)
 
 	var buf bytes.Buffer
