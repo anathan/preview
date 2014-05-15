@@ -5,6 +5,7 @@ import (
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
+	"github.com/ngerakines/preview/render"
 	"net/http"
 	"strconv"
 )
@@ -14,6 +15,7 @@ type adminBlueprint struct {
 	appConfig            config.AppConfig
 	placeholderManager   common.PlaceholderManager
 	temporaryFileManager common.TemporaryFileManager
+	agentManager         *render.RenderAgentManager
 }
 
 type placeholdersView struct {
@@ -22,6 +24,16 @@ type placeholdersView struct {
 
 type temporaryFilesView struct {
 	Files map[string]int
+}
+
+type renderAgentViewElement struct {
+	Count      int      `json:"count"`
+	Enabled    bool     `json:"enabled"`
+	ActiveWork []string `json:"activeWork"`
+}
+
+type renderAgentsView struct {
+	RenderAgents map[string]renderAgentViewElement `json:"renderAgents"`
 }
 
 type errorViewError struct {
@@ -34,12 +46,13 @@ type errorsView struct {
 }
 
 // NewAdminBlueprint creates a new adminBlueprint object.
-func NewAdminBlueprint(appConfig config.AppConfig, placeholderManager common.PlaceholderManager, temporaryFileManager common.TemporaryFileManager) *adminBlueprint {
+func NewAdminBlueprint(appConfig config.AppConfig, placeholderManager common.PlaceholderManager, temporaryFileManager common.TemporaryFileManager, agentManager *render.RenderAgentManager) *adminBlueprint {
 	blueprint := new(adminBlueprint)
 	blueprint.base = "/admin"
 	blueprint.appConfig = appConfig
 	blueprint.placeholderManager = placeholderManager
 	blueprint.temporaryFileManager = temporaryFileManager
+	blueprint.agentManager = agentManager
 	return blueprint
 }
 
@@ -49,6 +62,7 @@ func (blueprint *adminBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 	m.Get(blueprint.base+"/placeholders", blueprint.placeholdersHandler)
 	m.Get(blueprint.base+"/temporaryFiles", blueprint.temporaryFilesHandler)
 	m.Get(blueprint.base+"/errors", blueprint.errorsHandler)
+	m.Get(blueprint.base+"/renderAgents", blueprint.renderAgentsHandler)
 	return nil
 }
 
@@ -77,6 +91,28 @@ func (blueprint *adminBlueprint) placeholdersHandler(res http.ResponseWriter, re
 
 	res.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	res.Write(body)
+}
+
+func (blueprint *adminBlueprint) renderAgentsHandler(res http.ResponseWriter, req *http.Request) {
+	view := new(renderAgentsView)
+	view.RenderAgents = make(map[string]renderAgentViewElement)
+	for _, name := range common.RenderAgents {
+		view.RenderAgents[name] = blueprint.newRenderAgentViewElement(name)
+	}
+
+	body, err := json.Marshal(view)
+	if err != nil {
+		res.WriteHeader(500)
+		return
+	}
+
+	res.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	res.Write(body)
+}
+
+func (blueprint *adminBlueprint) newRenderAgentViewElement(name string) renderAgentViewElement {
+	enabled, count, activeWork := blueprint.agentManager.ActiveWorkForRenderAgent(common.RenderAgentDocument)
+	return renderAgentViewElement{count, enabled, activeWork}
 }
 
 // errorsHandler is an http controller that exposes all of the errors in the common.AllErrors as JSON.

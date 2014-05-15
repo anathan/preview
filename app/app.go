@@ -186,6 +186,8 @@ func (app *AppContext) initRenderers() error {
 	// NKG: This is where the RendererManager is constructed and renderers
 	// are configured and enabled through it.
 	app.agentManager = render.NewRenderAgentManager(app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager)
+	app.agentManager.SetRenderAgentInfo(common.RenderAgentImageMagick, app.appConfig.ImageMagickRenderAgent().Enabled(), app.appConfig.ImageMagickRenderAgent().Count())
+	app.agentManager.SetRenderAgentInfo(common.RenderAgentDocument, app.appConfig.DocumentRenderAgent().Enabled(), app.appConfig.DocumentRenderAgent().Count())
 	if app.appConfig.ImageMagickRenderAgent().Enabled() {
 		for i := 0; i < app.appConfig.ImageMagickRenderAgent().Count(); i++ {
 			app.agentManager.AddImageMagickRenderAgent(app.downloader, app.uploader, 5)
@@ -225,7 +227,7 @@ func (app *AppContext) initApis() error {
 	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
 	app.staticBlueprint.ConfigureMartini(app.martiniClassic)
 
-	app.adminBlueprint = api.NewAdminBlueprint(app.appConfig, app.placeholderManager, app.temporaryFileManager)
+	app.adminBlueprint = api.NewAdminBlueprint(app.appConfig, app.placeholderManager, app.temporaryFileManager, app.agentManager)
 	app.adminBlueprint.ConfigureMartini(app.martiniClassic)
 
 	return nil

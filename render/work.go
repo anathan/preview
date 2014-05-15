@@ -20,6 +20,8 @@ type RenderAgentManager struct {
 	renderAgents                 map[string][]RenderAgent
 	activeWork                   map[string][]string
 	maxWork                      map[string]int
+	enabledRenderAgents          map[string]bool
+	renderAgentCount             map[string]int
 
 	stop chan (chan bool)
 	mu   sync.Mutex
@@ -45,6 +47,8 @@ func NewRenderAgentManager(
 	agentManager.renderAgents = make(map[string][]RenderAgent)
 	agentManager.activeWork = make(map[string][]string)
 	agentManager.maxWork = make(map[string]int)
+	agentManager.enabledRenderAgents = make(map[string]bool)
+	agentManager.renderAgentCount = make(map[string]int)
 
 	agentManager.stop = make(chan (chan bool))
 	go agentManager.run()
@@ -52,10 +56,38 @@ func NewRenderAgentManager(
 	return agentManager
 }
 
+func (agentManager *RenderAgentManager) ActiveWorkForRenderAgent(renderAgent string) (bool, int, []string) {
+	activeWork, hasActiveWork := agentManager.activeWork[renderAgent]
+	if hasActiveWork {
+		return agentManager.isRenderAgentEnabled(renderAgent), agentManager.getRenderAgentCount(renderAgent), activeWork
+	}
+	return agentManager.isRenderAgentEnabled(renderAgent), agentManager.getRenderAgentCount(renderAgent), []string{}
+}
+
+func (agentManager *RenderAgentManager) SetRenderAgentInfo(name string, value bool, count int) {
+	agentManager.enabledRenderAgents[name] = value
+	agentManager.renderAgentCount[name] = count
+}
+
+func (agentManager *RenderAgentManager) isRenderAgentEnabled(name string) bool {
+	value, hasValue := agentManager.enabledRenderAgents[name]
+	if hasValue {
+		return value
+	}
+	return false
+}
+
+func (agentManager *RenderAgentManager) getRenderAgentCount(name string) int {
+	value, hasValue := agentManager.renderAgentCount[name]
+	if hasValue {
+		return value
+	}
+	return 0
+}
+
 func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType string, size int64) {
 	sourceAsset, err := common.NewSourceAsset(sourceAssetId, common.SourceAssetTypeOrigin)
 	if err != nil {
-		panic("crap")
 		return
 	}
 	sourceAsset.AddAttribute(common.SourceAssetAttributeSize, []string{strconv.FormatInt(size, 10)})
@@ -66,7 +98,6 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 
 	templates, status, err := agentManager.whichRenderAgent(fileType)
 	if err != nil {
-		panic("crap")
 		return
 	}
 	for _, template := range templates {
@@ -75,7 +106,6 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 			location := fmt.Sprintf("local:///%s/%s/0", sourceAssetId, placeholderSize)
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
-				panic("crap")
 				return
 			}
 			ga.Status = status
@@ -84,7 +114,6 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 			location := fmt.Sprintf("local:///%s/pdf", sourceAssetId)
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
-				panic("crap")
 				return
 			}
 			ga.Status = status
@@ -205,13 +234,10 @@ func (agentManager *RenderAgentManager) dispatchMoreWork() {
 	for name, renderAgents := range agentManager.renderAgents {
 		workCount := agentManager.workToDispatchCount(name)
 		rendererCount := len(renderAgents)
-		log.Println("Looking for work for", name, "and found", workCount, "slots for", rendererCount, "render agents.")
 		if workCount > 0 && rendererCount > 0 {
 			renderAgent := renderAgents[0]
 			generatedAssets, err := agentManager.generatedAssetStorageManager.FindWorkForService(name, workCount)
-			if err != nil {
-				log.Println("generatedAssetStorageManager.FindWorkForService error", err)
-			} else {
+			if err == nil {
 				for _, generatedAsset := range generatedAssets {
 					generatedAsset.Status = common.GeneratedAssetStatusScheduled
 					err := agentManager.generatedAssetStorageManager.Update(generatedAsset)
@@ -222,8 +248,6 @@ func (agentManager *RenderAgentManager) dispatchMoreWork() {
 					}
 				}
 			}
-		} else {
-			log.Println("work-count", workCount, "renderer-count", rendererCount)
 		}
 	}
 }
