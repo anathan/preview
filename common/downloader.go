@@ -5,6 +5,7 @@ import (
 	"github.com/ngerakines/ketama"
 	"github.com/ngerakines/preview/util"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	neturl "net/url"
@@ -25,15 +26,17 @@ type defaultDownloader struct {
 	tfm              TemporaryFileManager
 	tramEnabled      bool
 	tramHostRing     ketama.HashRing
+	s3Client         S3Client
 }
 
 // NewDownloader creates, configures and returns a new defaultDownloader.
-func NewDownloader(basePath, localStoragePath string, tfm TemporaryFileManager, tramEnabled bool, tramHosts []string) Downloader {
+func NewDownloader(basePath, localStoragePath string, tfm TemporaryFileManager, tramEnabled bool, tramHosts []string, s3Client S3Client) Downloader {
 	downloader := new(defaultDownloader)
 	downloader.basePath = basePath
 	downloader.localStoragePath = localStoragePath
 	downloader.tfm = tfm
 	downloader.tramEnabled = tramEnabled
+	downloader.s3Client = s3Client
 
 	if downloader.tramEnabled {
 		hashRing := ketama.NewRing(180)
@@ -57,6 +60,9 @@ func (downloader *defaultDownloader) Download(url, source string) (TemporaryFile
 	}
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 		return downloader.handleHttp(url, source)
+	}
+	if downloader.s3Client != nil && strings.HasPrefix(url, "s3://") {
+		return downloader.handleS3Object(url, source)
 	}
 	return nil, ErrorNotImplemented
 }
@@ -114,6 +120,40 @@ func (downloader *defaultDownloader) handleFile(url string) (TemporaryFile, erro
 		return nil, err
 	}
 	log.Println("File", path, "copied to", newPath)
+
+	return downloader.tfm.Create(newPath), nil
+}
+
+func (downloader *defaultDownloader) handleS3Object(url, source string) (TemporaryFile, error) {
+	uuid, err := util.NewUuid()
+	if err != nil {
+		return nil, err
+	}
+	newPath := filepath.Join(downloader.basePath, uuid)
+
+	usableData := url[5:]
+	// NKG: The url will have the following format: `s3://[bucket][path]`
+	// where path will begin with a `/` character.
+	parts := strings.SplitN(usableData, "/", 2)
+
+	s3Object, err := downloader.s3Client.Get(parts[0], parts[1])
+	if err != nil {
+		return nil, err
+	}
+
+	newPathDir := filepath.Dir(newPath)
+	os.MkdirAll(newPathDir, 0777)
+
+	out, err := os.Create(newPath)
+	if err != nil {
+		return nil, err
+	}
+	defer out.Close()
+
+	err = ioutil.WriteFile(newPath, s3Object.Payload(), 0777)
+	if err != nil {
+		return nil, err
+	}
 
 	return downloader.tfm.Create(newPath), nil
 }

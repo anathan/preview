@@ -100,32 +100,19 @@ func (app *AppContext) initTrams() error {
 		if err != nil {
 			panic(err)
 		}
-		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, true, tramHosts)
+		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, true, tramHosts, app.buildS3Client())
 	} else {
-		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, false, []string{})
+		app.downloader = common.NewDownloader(app.appConfig.Downloader().BasePath(), app.appConfig.Common().LocalAssetStoragePath(), app.temporaryFileManager, false, []string{}, app.buildS3Client())
 	}
 
 	switch app.appConfig.Uploader().Engine() {
 	case "s3":
 		{
+			s3Client := app.buildS3Client()
 			buckets, err := app.appConfig.Uploader().S3Buckets()
 			if err != nil {
-				return err
+				panic(err)
 			}
-			awsKey, err := app.appConfig.Uploader().S3Key()
-			if err != nil {
-				return err
-			}
-			awsSecret, err := app.appConfig.Uploader().S3Secret()
-			if err != nil {
-				return err
-			}
-			awsHost, err := app.appConfig.Uploader().S3Host()
-			if err != nil {
-				return err
-			}
-			log.Println("Creating s3 client with host", awsHost, "key", awsKey, "and secret", awsSecret)
-			s3Client := common.NewAmazonS3Client(common.NewBasicS3Config(awsKey, awsSecret, awsHost))
 			app.uploader = common.NewUploader(buckets, s3Client)
 		}
 	case "local":
@@ -185,7 +172,7 @@ func (app *AppContext) initStorage() error {
 func (app *AppContext) initRenderers() error {
 	// NKG: This is where the RendererManager is constructed and renderers
 	// are configured and enabled through it.
-	app.agentManager = render.NewRenderAgentManager(app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager)
+	app.agentManager = render.NewRenderAgentManager(app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager, app.uploader)
 	app.agentManager.SetRenderAgentInfo(common.RenderAgentImageMagick, app.appConfig.ImageMagickRenderAgent().Enabled(), app.appConfig.ImageMagickRenderAgent().Count())
 	app.agentManager.SetRenderAgentInfo(common.RenderAgentDocument, app.appConfig.DocumentRenderAgent().Enabled(), app.appConfig.DocumentRenderAgent().Count())
 	if app.appConfig.ImageMagickRenderAgent().Enabled() {
@@ -221,7 +208,7 @@ func (app *AppContext) initApis() error {
 		app.simpleBlueprint.ConfigureMartini(app.martiniClassic)
 	}
 
-	app.assetBlueprint = api.NewAssetBlueprint(app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager)
+	app.assetBlueprint = api.NewAssetBlueprint(app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client())
 	app.assetBlueprint.ConfigureMartini(app.martiniClassic)
 
 	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
@@ -239,4 +226,24 @@ func (app *AppContext) Stop() {
 		app.cassandraManager.Stop()
 	}
 	app.listener.Stop <- true
+}
+
+func (app *AppContext) buildS3Client() common.S3Client {
+	if app.appConfig.Uploader().Engine() != "s3" {
+		return nil
+	}
+	awsKey, err := app.appConfig.Uploader().S3Key()
+	if err != nil {
+		panic(err)
+	}
+	awsSecret, err := app.appConfig.Uploader().S3Secret()
+	if err != nil {
+		panic(err)
+	}
+	awsHost, err := app.appConfig.Uploader().S3Host()
+	if err != nil {
+		panic(err)
+	}
+	log.Println("Creating s3 client with host", awsHost, "key", awsKey, "and secret", awsSecret)
+	return common.NewAmazonS3Client(common.NewBasicS3Config(awsKey, awsSecret, awsHost))
 }

@@ -2,7 +2,6 @@ package render
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"io/ioutil"
@@ -217,7 +216,7 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 				return
 			}
 			// TODO: Update simple blueprint and image magick render agent to use this url structure.
-			location := fmt.Sprintf("local:///%s/%s/%d", sourceAsset.Id, placeholderSize, page)
+			location := renderAgent.uploader.Url(sourceAsset.Id, legacyTemplate.Id, placeholderSize, int32(page))
 			pdfGeneratedAsset, err := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
 			if err != nil {
 				statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}

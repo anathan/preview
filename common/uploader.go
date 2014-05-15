@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"github.com/ngerakines/ketama"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 type Uploader interface {
 	Upload(destination string, path string) error
+	Url(sourceAssetId, templateId, placeholderSize string, page int32) string
 }
 
 type s3Uploader struct {
@@ -66,6 +68,14 @@ func (uploader *s3Uploader) Upload(destination, path string) error {
 	return ErrorUploaderDoesNotSupportUrl
 }
 
+func (uploader *s3Uploader) Url(sourceAssetId, templateId, placeholderSize string, page int32) string {
+	bucket := uploader.bucketRing.Hash(sourceAssetId)
+	if templateId == DocumentConversionTemplateId {
+		return fmt.Sprintf("s3://%s/%s-pdf", bucket, sourceAssetId)
+	}
+	return fmt.Sprintf("s3://%s/%s-%s-%d", bucket, sourceAssetId, placeholderSize, page)
+}
+
 func (uploader *localUploader) Upload(destination, existingFile string) error {
 	log.Println("Uploading", existingFile, "to", destination)
 	if strings.HasPrefix(destination, "local://") {
@@ -81,4 +91,11 @@ func (uploader *localUploader) Upload(destination, existingFile string) error {
 		return nil
 	}
 	return ErrorUploaderDoesNotSupportUrl
+}
+
+func (uploader *localUploader) Url(sourceAssetId, templateId, placeholderSize string, page int32) string {
+	if templateId == DocumentConversionTemplateId {
+		return fmt.Sprintf("local:///%s/pdf", sourceAssetId)
+	}
+	return fmt.Sprintf("local:///%s/%s/%d", sourceAssetId, placeholderSize, page)
 }

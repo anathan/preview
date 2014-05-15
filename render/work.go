@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"github.com/ngerakines/preview/common"
 	"log"
 	"strconv"
@@ -15,6 +14,7 @@ type RenderAgentManager struct {
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
 	temporaryFileManager         common.TemporaryFileManager
+	uploader                     common.Uploader
 	workStatus                   RenderStatusChannel
 	workChannels                 map[string]RenderAgentWorkChannel
 	renderAgents                 map[string][]RenderAgent
@@ -31,12 +31,14 @@ func NewRenderAgentManager(
 	sourceAssetStorageManager common.SourceAssetStorageManager,
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
-	temporaryFileManager common.TemporaryFileManager) *RenderAgentManager {
+	temporaryFileManager common.TemporaryFileManager,
+	uploader common.Uploader) *RenderAgentManager {
 
 	agentManager := new(RenderAgentManager)
 	agentManager.sourceAssetStorageManager = sourceAssetStorageManager
 	agentManager.generatedAssetStorageManager = generatedAssetStorageManager
 	agentManager.templateManager = templateManager
+	agentManager.uploader = uploader
 
 	agentManager.temporaryFileManager = temporaryFileManager
 	agentManager.workStatus = make(RenderStatusChannel, 100)
@@ -102,8 +104,8 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 	}
 	for _, template := range templates {
 		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
+		location := agentManager.uploader.Url(sourceAssetId, template.Id, placeholderSize, 0)
 		if err == nil {
-			location := fmt.Sprintf("local:///%s/%s/0", sourceAssetId, placeholderSize)
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
 				return
@@ -111,7 +113,6 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 			ga.Status = status
 			agentManager.generatedAssetStorageManager.Store(ga)
 		} else {
-			location := fmt.Sprintf("local:///%s/pdf", sourceAssetId)
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
 				return

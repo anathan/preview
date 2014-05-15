@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/render"
@@ -281,15 +282,7 @@ func (blueprint *simpleBlueprint) handlePreviewInfoRequest(fileIds []string) ([]
 func (blueprint *simpleBlueprint) groupGeneratedAssetsByPage(generatedAssets []*common.GeneratedAsset) map[int32][]*common.GeneratedAsset {
 	results := make(map[int32][]*common.GeneratedAsset)
 	for _, generatedAsset := range generatedAssets {
-		var page int32 = 0
-
-		pageValue, err := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
-		if err == nil {
-			parsedInt, err := strconv.ParseInt(pageValue, 10, 32)
-			if err == nil {
-				page = int32(parsedInt)
-			}
-		}
+		page := blueprint.getGeneratedAssetPage(generatedAsset)
 		generatedAssetsForPage, hasGeneratedAssetsForPage := results[page]
 		if !hasGeneratedAssetsForPage {
 			generatedAssetsForPage = make([]*common.GeneratedAsset, 0, 0)
@@ -300,20 +293,21 @@ func (blueprint *simpleBlueprint) groupGeneratedAssetsByPage(generatedAssets []*
 	return results
 }
 
-func (blueprint *simpleBlueprint) scrubUrl(location string) string {
-	if strings.HasPrefix(location, "s3://") {
-		parts := strings.SplitN(location[5:], "/", 2)
-		if len(parts) == 2 {
-			return "http://s3-host/" + parts[0] + "/" + parts[1]
+func (blueprint *simpleBlueprint) getGeneratedAssetPage(generatedAsset *common.GeneratedAsset) int32 {
+	var page int32 = 0
+	pageValue, err := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
+	if err == nil {
+		parsedInt, err := strconv.ParseInt(pageValue, 10, 32)
+		if err == nil {
+			page = int32(parsedInt)
 		}
 	}
-	if strings.HasPrefix(location, "local://") {
-		log.Println("about to split location", location)
-		parts := strings.Split(location[9:], "/")
-		log.Println("location split into", parts)
-		return blueprint.edgeContentHost + "/asset/" + parts[0] + "/" + parts[1] + "/" + parts[2]
-	}
-	return location
+	return page
+}
+
+func (blueprint *simpleBlueprint) scrubUrl(generatedAsset *common.GeneratedAsset, placeholderSize string) string {
+	page := blueprint.getGeneratedAssetPage(generatedAsset)
+	return fmt.Sprintf("%s/asset/%s/%s/%d", blueprint.edgeContentHost, generatedAsset.SourceAssetId, placeholderSize, page)
 }
 
 func (blueprint *simpleBlueprint) signUrl(url string) string {
@@ -337,7 +331,7 @@ func (blueprint *simpleBlueprint) templatePlaceholderSize(template *common.Templ
 func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.GeneratedAsset, fileType, placeholderSize string, page int32) *imageInfo {
 	log.Println("Building preview image for", generatedAsset)
 	if generatedAsset.Status == common.GeneratedAssetStatusComplete {
-		return &imageInfo{blueprint.scrubUrl(generatedAsset.Location), 200, 200, 0, true, false, page}
+		return &imageInfo{blueprint.scrubUrl(generatedAsset, placeholderSize), 200, 200, 0, true, false, page}
 	}
 	if strings.HasPrefix(generatedAsset.Status, common.GeneratedAssetStatusFailed) {
 		// NKG: If the job failed, then before we return the placeholder, we set the "isFinal" field.

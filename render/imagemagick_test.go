@@ -124,7 +124,7 @@ func setupTest(path string) (*RenderAgentManager, common.SourceAssetStorageManag
 	tfm := common.NewTemporaryFileManager()
 	downloader := common.NewDownloader(path, path, tfm, false, []string{})
 	uploader := common.NewLocalUploader(path)
-	rm := NewRenderAgentManager(sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm)
+	rm := NewRenderAgentManager(sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm, uploader)
 
 	rm.AddImageMagickRenderAgent(downloader, uploader, 5)
 	rm.AddDocumentRenderAgent(downloader, uploader, filepath.Join(path, "doc-cache"), 5)
