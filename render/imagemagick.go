@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
+	"github.com/rcrowley/go-metrics"
 	"image"
 	"image/jpeg"
 	"log"
@@ -15,6 +16,7 @@ import (
 )
 
 type imageMagickRenderAgent struct {
+	metrics              *imageMagickRenderAgentMetrics
 	sasm                 common.SourceAssetStorageManager
 	gasm                 common.GeneratedAssetStorageManager
 	templateManager      common.TemplateManager
@@ -26,7 +28,17 @@ type imageMagickRenderAgent struct {
 	stop                 chan (chan bool)
 }
 
+type imageMagickRenderAgentMetrics struct {
+	workProcessed metrics.Meter
+	convertTime   metrics.Timer
+	jpgCount      metrics.Counter
+	pngCount      metrics.Counter
+	gifCount      metrics.Counter
+	pdfCount      metrics.Counter
+}
+
 func newImageMagickRenderAgent(
+	metrics *imageMagickRenderAgentMetrics,
 	sasm common.SourceAssetStorageManager,
 	gasm common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -36,6 +48,7 @@ func newImageMagickRenderAgent(
 	workChannel RenderAgentWorkChannel) RenderAgent {
 
 	renderAgent := new(imageMagickRenderAgent)
+	renderAgent.metrics = metrics
 	renderAgent.sasm = sasm
 	renderAgent.gasm = gasm
 	renderAgent.templateManager = templateManager
@@ -49,6 +62,26 @@ func newImageMagickRenderAgent(
 	go renderAgent.start()
 
 	return renderAgent
+}
+
+func newImageMagickRenderAgentMetrics(registry metrics.Registry) *imageMagickRenderAgentMetrics {
+	imageMagickMetrics := new(imageMagickRenderAgentMetrics)
+	imageMagickMetrics.workProcessed = metrics.NewMeter()
+	imageMagickMetrics.convertTime = metrics.NewTimer()
+
+	imageMagickMetrics.jpgCount = metrics.NewCounter()
+	imageMagickMetrics.pngCount = metrics.NewCounter()
+	imageMagickMetrics.gifCount = metrics.NewCounter()
+	imageMagickMetrics.pdfCount = metrics.NewCounter()
+
+	registry.Register("imageMagickRenderAgent.workProcessed", imageMagickMetrics.workProcessed)
+	registry.Register("imageMagickRenderAgent.convertTime", imageMagickMetrics.convertTime)
+	registry.Register("imageMagickRenderAgent.jpgCount", imageMagickMetrics.jpgCount)
+	registry.Register("imageMagickRenderAgent.pngCount", imageMagickMetrics.pngCount)
+	registry.Register("imageMagickRenderAgent.gifCount", imageMagickMetrics.gifCount)
+	registry.Register("imageMagickRenderAgent.pdfCount", imageMagickMetrics.pdfCount)
+
+	return imageMagickMetrics
 }
 
 func (renderAgent *imageMagickRenderAgent) start() {
@@ -95,6 +128,8 @@ func (renderAgent *imageMagickRenderAgent) Dispatch() RenderAgentWorkChannel {
 
 func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 
+	renderAgent.metrics.workProcessed.Mark(1)
+
 	generatedAsset, err := renderAgent.gasm.FindById(id)
 	if err != nil {
 		log.Fatal("No Generated Asset with that ID can be retreived from storage: ", id)
@@ -117,6 +152,19 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotDetermineFileType), nil}
 		return
+	}
+
+	switch fileType {
+	case "jpg":
+		renderAgent.metrics.jpgCount.Inc(1)
+	case "jpeg":
+		renderAgent.metrics.jpgCount.Inc(1)
+	case "png":
+		renderAgent.metrics.pngCount.Inc(1)
+	case "gif":
+		renderAgent.metrics.gifCount.Inc(1)
+	case "pdf":
+		renderAgent.metrics.pdfCount.Inc(1)
 	}
 
 	templates, err := renderAgent.templateManager.FindByIds([]string{generatedAsset.TemplateId})
@@ -148,18 +196,20 @@ func (renderAgent *imageMagickRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	if fileType == "pdf" {
-		page, _ := renderAgent.getGeneratedAssetPage(generatedAsset)
-		err = renderAgent.imageFromPdf(sourceFile.Path(), destination, size, page)
-	} else if fileType == "gif" {
-		err = renderAgent.firstGifFrame(sourceFile.Path(), destination, size)
-	} else {
-		err = renderAgent.resize(sourceFile.Path(), destination, size)
-	}
-	if err != nil {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
-		return
-	}
+	renderAgent.metrics.convertTime.Time(func() {
+		if fileType == "pdf" {
+			page, _ := renderAgent.getGeneratedAssetPage(generatedAsset)
+			err = renderAgent.imageFromPdf(sourceFile.Path(), destination, size, page)
+		} else if fileType == "gif" {
+			err = renderAgent.firstGifFrame(sourceFile.Path(), destination, size)
+		} else {
+			err = renderAgent.resize(sourceFile.Path(), destination, size)
+		}
+		if err != nil {
+			statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
+			return
+		}
+	})
 
 	err = renderAgent.uploader.Upload(generatedAsset.Location, destination)
 	if err != nil {

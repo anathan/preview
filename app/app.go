@@ -7,6 +7,7 @@ import (
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
 	"github.com/ngerakines/preview/render"
+	"github.com/rcrowley/go-metrics"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 )
 
 type AppContext struct {
+	registry                     metrics.Registry
 	appConfig                    config.AppConfig
 	agentManager                 *render.RenderAgentManager
 	sourceAssetStorageManager    common.SourceAssetStorageManager
@@ -36,6 +38,11 @@ type AppContext struct {
 func NewApp(appConfig config.AppConfig) (*AppContext, error) {
 	log.Println("Creating application with config", appConfig)
 	app := new(AppContext)
+	app.registry = metrics.NewRegistry()
+
+	metrics.RegisterRuntimeMemStats(app.registry)
+	go metrics.CaptureRuntimeMemStats(app.registry, 60e9)
+
 	app.appConfig = appConfig
 
 	err := app.initTrams()
@@ -172,7 +179,7 @@ func (app *AppContext) initStorage() error {
 func (app *AppContext) initRenderers() error {
 	// NKG: This is where the RendererManager is constructed and renderers
 	// are configured and enabled through it.
-	app.agentManager = render.NewRenderAgentManager(app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager, app.uploader)
+	app.agentManager = render.NewRenderAgentManager(app.registry, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.temporaryFileManager, app.uploader)
 	app.agentManager.SetRenderAgentInfo(common.RenderAgentImageMagick, app.appConfig.ImageMagickRenderAgent().Enabled(), app.appConfig.ImageMagickRenderAgent().Count())
 	app.agentManager.SetRenderAgentInfo(common.RenderAgentDocument, app.appConfig.DocumentRenderAgent().Enabled(), app.appConfig.DocumentRenderAgent().Count())
 	if app.appConfig.ImageMagickRenderAgent().Enabled() {
@@ -201,20 +208,20 @@ func (app *AppContext) initApis() error {
 	var err error
 
 	if app.appConfig.SimpleApi().Enabled() {
-		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.appConfig.SimpleApi().BaseUrl(), app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, allSupportedFileTypes)
+		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.registry, app.appConfig.SimpleApi().BaseUrl(), app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, allSupportedFileTypes)
 		if err != nil {
 			return err
 		}
 		app.simpleBlueprint.ConfigureMartini(app.martiniClassic)
 	}
 
-	app.assetBlueprint = api.NewAssetBlueprint(app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client())
+	app.assetBlueprint = api.NewAssetBlueprint(app.registry, app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client())
 	app.assetBlueprint.ConfigureMartini(app.martiniClassic)
 
 	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
 	app.staticBlueprint.ConfigureMartini(app.martiniClassic)
 
-	app.adminBlueprint = api.NewAdminBlueprint(app.appConfig, app.placeholderManager, app.temporaryFileManager, app.agentManager)
+	app.adminBlueprint = api.NewAdminBlueprint(app.registry, app.appConfig, app.placeholderManager, app.temporaryFileManager, app.agentManager)
 	app.adminBlueprint.ConfigureMartini(app.martiniClassic)
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
+	"github.com/rcrowley/go-metrics"
 	"io/ioutil"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 )
 
 type documentRenderAgent struct {
+	metrics              *documentRenderAgentMetrics
 	sasm                 common.SourceAssetStorageManager
 	gasm                 common.GeneratedAssetStorageManager
 	templateManager      common.TemplateManager
@@ -28,7 +30,17 @@ type documentRenderAgent struct {
 	stop                 chan (chan bool)
 }
 
+type documentRenderAgentMetrics struct {
+	workProcessed metrics.Meter
+	convertTime   metrics.Timer
+	docCount      metrics.Counter
+	docxCount     metrics.Counter
+	pptCount      metrics.Counter
+	pptxCount     metrics.Counter
+}
+
 func newDocumentRenderAgent(
+	metrics *documentRenderAgentMetrics,
 	sasm common.SourceAssetStorageManager,
 	gasm common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -39,6 +51,7 @@ func newDocumentRenderAgent(
 	workChannel RenderAgentWorkChannel) RenderAgent {
 
 	renderAgent := new(documentRenderAgent)
+	renderAgent.metrics = metrics
 	renderAgent.sasm = sasm
 	renderAgent.gasm = gasm
 	renderAgent.templateManager = templateManager
@@ -53,6 +66,25 @@ func newDocumentRenderAgent(
 	go renderAgent.start()
 
 	return renderAgent
+}
+
+func newDocumentRenderAgentMetrics(registry metrics.Registry) *documentRenderAgentMetrics {
+	documentMetrics := new(documentRenderAgentMetrics)
+	documentMetrics.workProcessed = metrics.NewMeter()
+	documentMetrics.convertTime = metrics.NewTimer()
+	documentMetrics.docCount = metrics.NewCounter()
+	documentMetrics.docxCount = metrics.NewCounter()
+	documentMetrics.pptCount = metrics.NewCounter()
+	documentMetrics.pptxCount = metrics.NewCounter()
+
+	registry.Register("documentRenderAgent.workProcessed", documentMetrics.workProcessed)
+	registry.Register("documentRenderAgent.convertTime", documentMetrics.convertTime)
+	registry.Register("documentRenderAgent.docCount", documentMetrics.docCount)
+	registry.Register("documentRenderAgent.docxCount", documentMetrics.docxCount)
+	registry.Register("documentRenderAgent.pptCount", documentMetrics.pptCount)
+	registry.Register("documentRenderAgent.pptxCount", documentMetrics.pptxCount)
+
+	return documentMetrics
 }
 
 func (renderAgent *documentRenderAgent) start() {
@@ -111,6 +143,7 @@ func (renderAgent *documentRenderAgent) Dispatch() RenderAgentWorkChannel {
 11. Update the status of the generated asset as complete.
 */
 func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
+	renderAgent.metrics.workProcessed.Mark(1)
 
 	// 1. Get the generated asset
 	generatedAsset, err := renderAgent.gasm.FindById(id)
@@ -130,6 +163,20 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	if err != nil {
 		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorUnableToFindSourceAssetsById), nil}
 		return
+	}
+
+	fileType, err := common.GetFirstAttribute(sourceAsset, common.SourceAssetAttributeType)
+	if err == nil {
+		switch fileType {
+		case "doc":
+			renderAgent.metrics.docCount.Inc(1)
+		case "docx":
+			renderAgent.metrics.docxCount.Inc(1)
+		case "ppt":
+			renderAgent.metrics.pptCount.Inc(1)
+		case "pptx":
+			renderAgent.metrics.pptxCount.Inc(1)
+		}
 	}
 
 	// 3. Get the template... not needed yet
@@ -152,11 +199,13 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 	destinationTemporaryFile := renderAgent.temporaryFileManager.Create(destination)
 	defer destinationTemporaryFile.Release()
 
-	err = renderAgent.createPdf(sourceFile.Path(), destination)
-	if err != nil {
-		statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
-		return
-	}
+	renderAgent.metrics.convertTime.Time(func() {
+		err = renderAgent.createPdf(sourceFile.Path(), destination)
+		if err != nil {
+			statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorCouldNotResizeImage), nil}
+			return
+		}
+	})
 
 	files, err := renderAgent.getRenderedFiles(destination)
 	if err != nil {

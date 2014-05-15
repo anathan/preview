@@ -6,6 +6,7 @@ import (
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/render"
+	"github.com/rcrowley/go-metrics"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -22,10 +23,14 @@ type simpleBlueprint struct {
 	templateManager              common.TemplateManager
 	placeholderManager           common.PlaceholderManager
 	supportedFileTypes           map[string]int64
+
+	generatePreviewRequestsMeter metrics.Meter
+	previewInfoRequestsMeter     metrics.Meter
 }
 
 // NewSimpleBlueprint creates a new simpleBlueprint object.
 func NewSimpleBlueprint(
+	registry metrics.Registry,
 	base string,
 	edgeContentHost string,
 	renderAgentManager *render.RenderAgentManager,
@@ -43,6 +48,12 @@ func NewSimpleBlueprint(
 	blueprint.templateManager = templateManager
 	blueprint.placeholderManager = placeholderManager
 	blueprint.supportedFileTypes = supportedFileTypes
+
+	blueprint.generatePreviewRequestsMeter = metrics.NewMeter()
+	blueprint.previewInfoRequestsMeter = metrics.NewMeter()
+	registry.Register("simpleApi.generatePreviewRequests", blueprint.generatePreviewRequestsMeter)
+	registry.Register("simpleApi.previewInfoRequests", blueprint.previewInfoRequestsMeter)
+
 	return blueprint, nil
 }
 
@@ -59,6 +70,7 @@ func (blueprint *simpleBlueprint) buildUrl(path string) string {
 }
 
 func (blueprint *simpleBlueprint) GeneratePreviewHandler(res http.ResponseWriter, req *http.Request) {
+	blueprint.generatePreviewRequestsMeter.Mark(1)
 	if req.Method != "PUT" {
 		// TODO: Make sure this is the correct status code being returned.
 		res.Header().Set("Content-Length", "0")
@@ -105,6 +117,7 @@ func (blueprint *simpleBlueprint) GeneratePreviewHandler(res http.ResponseWriter
 }
 
 func (blueprint *simpleBlueprint) PreviewInfoHandler(res http.ResponseWriter, req *http.Request) {
+	blueprint.previewInfoRequestsMeter.Mark(1)
 	if req.Method != "GET" {
 		// TODO: Make sure this is the correct status code being returned.
 		res.Header().Set("Content-Length", "0")

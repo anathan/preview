@@ -1,17 +1,20 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
 	"github.com/ngerakines/preview/render"
+	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"strconv"
 )
 
 type adminBlueprint struct {
 	base                 string
+	registry             metrics.Registry
 	appConfig            config.AppConfig
 	placeholderManager   common.PlaceholderManager
 	temporaryFileManager common.TemporaryFileManager
@@ -46,9 +49,10 @@ type errorsView struct {
 }
 
 // NewAdminBlueprint creates a new adminBlueprint object.
-func NewAdminBlueprint(appConfig config.AppConfig, placeholderManager common.PlaceholderManager, temporaryFileManager common.TemporaryFileManager, agentManager *render.RenderAgentManager) *adminBlueprint {
+func NewAdminBlueprint(registry metrics.Registry, appConfig config.AppConfig, placeholderManager common.PlaceholderManager, temporaryFileManager common.TemporaryFileManager, agentManager *render.RenderAgentManager) *adminBlueprint {
 	blueprint := new(adminBlueprint)
 	blueprint.base = "/admin"
+	blueprint.registry = registry
 	blueprint.appConfig = appConfig
 	blueprint.placeholderManager = placeholderManager
 	blueprint.temporaryFileManager = temporaryFileManager
@@ -63,17 +67,24 @@ func (blueprint *adminBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 	m.Get(blueprint.base+"/temporaryFiles", blueprint.temporaryFilesHandler)
 	m.Get(blueprint.base+"/errors", blueprint.errorsHandler)
 	m.Get(blueprint.base+"/renderAgents", blueprint.renderAgentsHandler)
+	m.Get(blueprint.base+"/metrics", blueprint.metricsHandler)
 	return nil
 }
 
-// ConfigHandler is an http controller the exposes the daemon configuration as JSON.
 func (blueprint *adminBlueprint) configHandler(res http.ResponseWriter, req *http.Request) {
 	content := blueprint.appConfig.Source()
 	res.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	res.Write([]byte(content))
 }
 
-// PlaceholdersHandler is an http controller that exposes all of the placeholders in the common.PlaceholderManager as JSON.
+func (blueprint *adminBlueprint) metricsHandler(res http.ResponseWriter, req *http.Request) {
+	content := &bytes.Buffer{}
+	enc := json.NewEncoder(content)
+	enc.Encode(blueprint.registry)
+	res.Header().Set("Content-Length", strconv.Itoa(content.Len()))
+	res.Write(content.Bytes())
+}
+
 func (blueprint *adminBlueprint) placeholdersHandler(res http.ResponseWriter, req *http.Request) {
 	view := new(placeholdersView)
 	view.Placeholders = make([]*common.Placeholder, 0, 0)
@@ -115,7 +126,6 @@ func (blueprint *adminBlueprint) newRenderAgentViewElement(name string) renderAg
 	return renderAgentViewElement{count, enabled, activeWork}
 }
 
-// errorsHandler is an http controller that exposes all of the errors in the common.AllErrors as JSON.
 func (blueprint *adminBlueprint) errorsHandler(res http.ResponseWriter, req *http.Request) {
 	view := new(errorsView)
 	view.Errors = make([]errorViewError, 0, 0)
@@ -132,7 +142,6 @@ func (blueprint *adminBlueprint) errorsHandler(res http.ResponseWriter, req *htt
 	res.Write(body)
 }
 
-// TemporaryFilesHandler is an http controller that exposes all of the temporary files tracked by a common.TemporaryFileManager as JSON.
 func (blueprint *adminBlueprint) temporaryFilesHandler(res http.ResponseWriter, req *http.Request) {
 	view := new(temporaryFilesView)
 	view.Files = blueprint.temporaryFileManager.List()

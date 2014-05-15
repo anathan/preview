@@ -5,6 +5,7 @@ import (
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/ngerakines/testutils"
+	"github.com/rcrowley/go-metrics"
 	"log"
 	"path/filepath"
 	"testing"
@@ -124,7 +125,8 @@ func setupTest(path string) (*RenderAgentManager, common.SourceAssetStorageManag
 	tfm := common.NewTemporaryFileManager()
 	downloader := common.NewDownloader(path, path, tfm, false, []string{}, nil)
 	uploader := common.NewLocalUploader(path)
-	rm := NewRenderAgentManager(sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm, uploader)
+	registry := metrics.NewRegistry()
+	rm := NewRenderAgentManager(registry, sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm, uploader)
 
 	rm.AddImageMagickRenderAgent(downloader, uploader, 5)
 	rm.AddDocumentRenderAgent(downloader, uploader, filepath.Join(path, "doc-cache"), 5)

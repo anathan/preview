@@ -4,7 +4,7 @@ import (
 	"github.com/codegangsta/martini"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
-	"log"
+	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -19,6 +19,11 @@ type assetBlueprint struct {
 	s3Client                     common.S3Client
 	localAssetStoragePath        string
 	templatesBySize              map[string]string
+
+	requestsMeter               metrics.Meter
+	malformedRequestsMeter      metrics.Meter
+	emptyRequestsMeter          metrics.Meter
+	unknownGeneratedAssetsMeter metrics.Meter
 }
 
 type assetAction int
@@ -32,6 +37,7 @@ var (
 
 // NewAssetBlueprint creates, configures and returns a new blueprint. This structure contains the state and HTTP controllers used to serve assets.
 func NewAssetBlueprint(
+	registry metrics.Registry,
 	localAssetStoragePath string,
 	sourceAssetStorageManager common.SourceAssetStorageManager,
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
@@ -47,6 +53,15 @@ func NewAssetBlueprint(
 	blueprint.placeholderManager = placeholderManager
 	blueprint.localAssetStoragePath = localAssetStoragePath
 	blueprint.s3Client = s3Client
+
+	blueprint.requestsMeter = metrics.NewMeter()
+	blueprint.malformedRequestsMeter = metrics.NewMeter()
+	blueprint.emptyRequestsMeter = metrics.NewMeter()
+	blueprint.unknownGeneratedAssetsMeter = metrics.NewMeter()
+	registry.Register("assetApi.requests", blueprint.requestsMeter)
+	registry.Register("assetApi.malformedRequests", blueprint.malformedRequestsMeter)
+	registry.Register("assetApi.emptyRequests", blueprint.emptyRequestsMeter)
+	registry.Register("assetApi.unknownGeneratedAssets", blueprint.unknownGeneratedAssetsMeter)
 
 	var err error
 	if err != nil {
@@ -75,10 +90,13 @@ func (blueprint *assetBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 }
 
 func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http.Request) {
+	blueprint.requestsMeter.Mark(1)
+
 	splitIndex := len(blueprint.base + "/")
 	parts := strings.Split(req.URL.Path[splitIndex:], "/")
 
 	if len(parts) != 3 {
+		blueprint.malformedRequestsMeter.Mark(1)
 		res.Header().Set("Content-Length", "0")
 		res.WriteHeader(404)
 		return
@@ -105,6 +123,7 @@ func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http
 			}
 		}
 	}
+	blueprint.emptyRequestsMeter.Mark(1)
 	res.Header().Set("Content-Length", "0")
 	res.WriteHeader(404)
 	return
@@ -122,7 +141,11 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize, page string) 
 
 	generatedAssets, err := blueprint.generatedAssetStorageManager.FindBySourceAssetId(fileId)
 	if err != nil {
+		blueprint.unknownGeneratedAssetsMeter.Mark(1)
 		return assetAction404, ""
+	}
+	if len(generatedAssets) == 0 {
+		blueprint.unknownGeneratedAssetsMeter.Mark(1)
 	}
 
 	templateId, hasTemplateId := blueprint.templatesBySize[placeholderSize]
@@ -131,7 +154,6 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize, page string) 
 			pageVal, err := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
 			pageMatch := err == nil && pageVal == page
 			if generatedAsset.TemplateId == templateId && pageMatch {
-				log.Println("Found generated asset matching template", generatedAsset)
 				if strings.HasPrefix(generatedAsset.Location, "local://") {
 					fullPath := filepath.Join(blueprint.localAssetStoragePath, fileId, placeholderSize, page)
 					if util.CanLoadFile(fullPath) {

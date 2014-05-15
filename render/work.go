@@ -2,6 +2,7 @@ package render
 
 import (
 	"github.com/ngerakines/preview/common"
+	"github.com/rcrowley/go-metrics"
 	"log"
 	"strconv"
 	"strings"
@@ -23,11 +24,15 @@ type RenderAgentManager struct {
 	enabledRenderAgents          map[string]bool
 	renderAgentCount             map[string]int
 
+	documentMetrics    *documentRenderAgentMetrics
+	imageMagickMetrics *imageMagickRenderAgentMetrics
+
 	stop chan (chan bool)
 	mu   sync.Mutex
 }
 
 func NewRenderAgentManager(
+	registry metrics.Registry,
 	sourceAssetStorageManager common.SourceAssetStorageManager,
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -51,6 +56,9 @@ func NewRenderAgentManager(
 	agentManager.maxWork = make(map[string]int)
 	agentManager.enabledRenderAgents = make(map[string]bool)
 	agentManager.renderAgentCount = make(map[string]int)
+
+	agentManager.documentMetrics = newDocumentRenderAgentMetrics(registry)
+	agentManager.imageMagickMetrics = newImageMagickRenderAgentMetrics(registry)
 
 	agentManager.stop = make(chan (chan bool))
 	go agentManager.run()
@@ -166,14 +174,14 @@ func (agentManager *RenderAgentManager) Stop() {
 }
 
 func (agentManager *RenderAgentManager) AddImageMagickRenderAgent(downloader common.Downloader, uploader common.Uploader, maxWorkIncrease int) RenderAgent {
-	renderAgent := newImageMagickRenderAgent(agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, agentManager.workChannels[common.RenderAgentImageMagick])
+	renderAgent := newImageMagickRenderAgent(agentManager.imageMagickMetrics, agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, agentManager.workChannels[common.RenderAgentImageMagick])
 	renderAgent.AddStatusListener(agentManager.workStatus)
 	agentManager.AddRenderAgent(common.RenderAgentImageMagick, renderAgent, maxWorkIncrease)
 	return renderAgent
 }
 
 func (agentManager *RenderAgentManager) AddDocumentRenderAgent(downloader common.Downloader, uploader common.Uploader, docCachePath string, maxWorkIncrease int) RenderAgent {
-	renderAgent := newDocumentRenderAgent(agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, docCachePath, agentManager.workChannels[common.RenderAgentDocument])
+	renderAgent := newDocumentRenderAgent(agentManager.documentMetrics, agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, docCachePath, agentManager.workChannels[common.RenderAgentDocument])
 	renderAgent.AddStatusListener(agentManager.workStatus)
 	agentManager.AddRenderAgent(common.RenderAgentDocument, renderAgent, maxWorkIncrease)
 	return renderAgent
