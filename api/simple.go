@@ -326,6 +326,7 @@ func (blueprint *simpleBlueprint) scrubUrl(generatedAsset *common.GeneratedAsset
 }
 
 func (blueprint *simpleBlueprint) signUrl(url string) (string, int64) {
+	// NKG: Configuration should be added to determine if urls should be signed or not.
 	signedUrl, expires, err := blueprint.signatureManager.Sign(url)
 	if err != nil {
 		return url, 0

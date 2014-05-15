@@ -15,6 +15,7 @@ type SignatureManager interface {
 	IsValid(url string) bool
 }
 
+// TODO: The key should be set by configuration and should support multiple keys.
 type defaultSignatureManager struct {
 	key string
 }

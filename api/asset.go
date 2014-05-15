@@ -96,6 +96,7 @@ func (blueprint *assetBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http.Request) {
 	blueprint.requestsMeter.Mark(1)
 
+	// NKG: Currently does nothing. This should have configuration to enabled failing requests that don't have signatures.
 	log.Println("signature is valid?", blueprint.signatureManager.IsValid(req.URL.String()))
 
 	splitIndex := len(blueprint.base + "/")
