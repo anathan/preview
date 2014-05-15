@@ -76,11 +76,10 @@ func (command *RenderCommand) String() string {
 func (command *RenderCommand) Execute() {
 	pendingIds := make(map[string]bool)
 	for _, file := range command.filesToSubmit() {
-		fileUrl := command.urlForFile(file)
 		if command.verbose > 0 {
-			log.Println("Peparing to send file", fileUrl)
+			log.Println("Peparing to send file", file)
 		}
-		request := newGenerateRequestFromFile(fileUrl)
+		request := newGenerateRequestFromFile(file)
 		pendingIds[request.id] = false
 		if command.verbose > 1 {
 			log.Println(request.ToLegacyRequestPayload())
@@ -114,6 +113,7 @@ func (command *RenderCommand) filesToSubmit() []string {
 	files := make([]string, 0, 0)
 	for _, file := range command.files {
 		shouldTry, path := command.absFilePath(file)
+		log.Println(shouldTry, path)
 		if shouldTry {
 			isDir, err := util.IsDirectory(path)
 			if err == nil {
@@ -122,13 +122,17 @@ func (command *RenderCommand) filesToSubmit() []string {
 					if err == nil {
 						for _, subdirFile := range subdirFiles {
 							if !subdirFile.IsDir() {
-								files = append(files, filepath.Join(path, subdirFile.Name()))
+								files = append(files, "file://"+filepath.Join(path, subdirFile.Name()))
 							}
 						}
 					}
 				} else {
-					files = append(files, path)
+					files = append(files, "file://"+path)
 				}
+			}
+		} else {
+			if strings.HasPrefix(file, "http://") || strings.HasPrefix(file, "https://") {
+				files = append(files, path)
 			}
 		}
 	}
@@ -137,7 +141,7 @@ func (command *RenderCommand) filesToSubmit() []string {
 
 func (command *RenderCommand) absFilePath(file string) (bool, string) {
 	if strings.HasPrefix(file, "http://") || strings.HasPrefix(file, "https://") {
-		return false, ""
+		return false, file
 	}
 	if strings.HasPrefix(file, "file://") {
 		return true, file[7:]
@@ -146,19 +150,6 @@ func (command *RenderCommand) absFilePath(file string) (bool, string) {
 		return true, file
 	}
 	return true, filepath.Join(util.Cwd(), file)
-}
-
-func (command *RenderCommand) urlForFile(file string) string {
-	if strings.HasPrefix(file, "http://") || strings.HasPrefix(file, "https://") {
-		panic("Remote files are not supported.")
-	}
-	if strings.HasPrefix(file, "file://") {
-		return file
-	}
-	if strings.HasPrefix(file, "/") {
-		return "file://" + file
-	}
-	return "file://" + filepath.Join(util.Cwd(), file)
 }
 
 func (request *generateRequest) ToLegacyRequestPayload() string {
@@ -174,7 +165,7 @@ func newGenerateRequestFromFile(file string) *generateRequest {
 	log.Println("Creating new request for file", localFilePath)
 	fi, err := os.Stat(localFilePath)
 	if err != nil {
-		panic("Could not read file size")
+		return newGenerateRequest(uuid.New(), filepath.Ext(localFilePath)[1:], file, 1)
 	}
 	return newGenerateRequest(uuid.New(), filepath.Ext(localFilePath)[1:], file, fi.Size())
 }
