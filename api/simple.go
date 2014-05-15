@@ -24,6 +24,8 @@ type simpleBlueprint struct {
 	placeholderManager           common.PlaceholderManager
 	supportedFileTypes           map[string]int64
 
+	signatureManager SignatureManager
+
 	generatePreviewRequestsMeter metrics.Meter
 	previewInfoRequestsMeter     metrics.Meter
 }
@@ -48,6 +50,8 @@ func NewSimpleBlueprint(
 	blueprint.templateManager = templateManager
 	blueprint.placeholderManager = placeholderManager
 	blueprint.supportedFileTypes = supportedFileTypes
+
+	blueprint.signatureManager = NewSignatureManager()
 
 	blueprint.generatePreviewRequestsMeter = metrics.NewMeter()
 	blueprint.previewInfoRequestsMeter = metrics.NewMeter()
@@ -323,8 +327,12 @@ func (blueprint *simpleBlueprint) scrubUrl(generatedAsset *common.GeneratedAsset
 	return fmt.Sprintf("%s/asset/%s/%s/%d", blueprint.edgeContentHost, generatedAsset.SourceAssetId, placeholderSize, page)
 }
 
-func (blueprint *simpleBlueprint) signUrl(url string) string {
-	return url
+func (blueprint *simpleBlueprint) signUrl(url string) (string, int64) {
+	signedUrl, expires, err := blueprint.signatureManager.Sign(url)
+	if err != nil {
+		return url, 0
+	}
+	return signedUrl, expires
 }
 
 func (blueprint *simpleBlueprint) templatePlaceholderSize(template *common.Template) (string, error) {
@@ -344,7 +352,8 @@ func (blueprint *simpleBlueprint) templatePlaceholderSize(template *common.Templ
 func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.GeneratedAsset, fileType, placeholderSize string, page int32) *imageInfo {
 	log.Println("Building preview image for", generatedAsset)
 	if generatedAsset.Status == common.GeneratedAssetStatusComplete {
-		return &imageInfo{blueprint.scrubUrl(generatedAsset, placeholderSize), 200, 200, 0, true, false, page}
+		signedUrl, expires := blueprint.signUrl(blueprint.scrubUrl(generatedAsset, placeholderSize))
+		return &imageInfo{signedUrl, 200, 200, expires, true, false, page}
 	}
 	if strings.HasPrefix(generatedAsset.Status, common.GeneratedAssetStatusFailed) {
 		// NKG: If the job failed, then before we return the placeholder, we set the "isFinal" field.
@@ -357,7 +366,8 @@ func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.Generat
 
 func (blueprint *simpleBlueprint) getPlaceholder(fileType, placeholderSize string, page int32) *imageInfo {
 	placeholder := blueprint.placeholderManager.Url(fileType, placeholderSize)
-	return &imageInfo{blueprint.edgeContentHost + "/static" + placeholder.Url, 200, 200, 0, false, false, page}
+	signedUrl, expires := blueprint.signUrl(blueprint.edgeContentHost + "/static" + placeholder.Url)
+	return &imageInfo{signedUrl, 200, 200, expires, false, false, page}
 }
 
 func (blueprint *simpleBlueprint) getFileType(sourceAssets []*common.SourceAsset) string {

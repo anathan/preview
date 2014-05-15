@@ -5,6 +5,7 @@ import (
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/rcrowley/go-metrics"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,8 @@ type assetBlueprint struct {
 	s3Client                     common.S3Client
 	localAssetStoragePath        string
 	templatesBySize              map[string]string
+
+	signatureManager SignatureManager
 
 	requestsMeter               metrics.Meter
 	malformedRequestsMeter      metrics.Meter
@@ -53,6 +56,8 @@ func NewAssetBlueprint(
 	blueprint.placeholderManager = placeholderManager
 	blueprint.localAssetStoragePath = localAssetStoragePath
 	blueprint.s3Client = s3Client
+
+	blueprint.signatureManager = NewSignatureManager()
 
 	blueprint.requestsMeter = metrics.NewMeter()
 	blueprint.malformedRequestsMeter = metrics.NewMeter()
@@ -91,6 +96,8 @@ func (blueprint *assetBlueprint) ConfigureMartini(m *martini.ClassicMartini) err
 
 func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http.Request) {
 	blueprint.requestsMeter.Mark(1)
+
+	log.Println("signature is valid?", blueprint.signatureManager.IsValid(req.URL.String()))
 
 	splitIndex := len(blueprint.base + "/")
 	parts := strings.Split(req.URL.Path[splitIndex:], "/")
