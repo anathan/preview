@@ -54,6 +54,7 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
    },
    "simpleApi":{
       "enabled":true,
+      "baseUrl":"/api",
       "edgeBaseUrl":"http://localhost:8080"
    },
    "assetApi":{

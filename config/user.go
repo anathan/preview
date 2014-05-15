@@ -51,6 +51,7 @@ type userDocumentRenderAgentAppConfig struct {
 type userSimpleApiAppConfig struct {
 	enabled     bool
 	edgeBaseUrl string
+	baseUrl     string
 }
 
 type userAssetApiAppConfig struct {
@@ -302,6 +303,11 @@ func newUserSimpleApiAppConfig(m map[string]interface{}) (SimpleApiAppConfig, er
 		return nil, err
 	}
 
+	config.baseUrl, err = parseString("simpleApi", "baseUrl", data)
+	if err != nil {
+		return nil, err
+	}
+
 	return config, nil
 }
 
@@ -475,6 +481,10 @@ func (c *userSimpleApiAppConfig) Enabled() bool {
 
 func (c *userSimpleApiAppConfig) EdgeBaseUrl() string {
 	return c.edgeBaseUrl
+}
+
+func (c *userSimpleApiAppConfig) BaseUrl() string {
+	return c.baseUrl
 }
 
 func (c *userAssetApiAppConfig) Enabled() bool {

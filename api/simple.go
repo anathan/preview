@@ -25,6 +25,7 @@ type simpleBlueprint struct {
 
 // NewSimpleBlueprint creates a new simpleBlueprint object.
 func NewSimpleBlueprint(
+	base string,
 	edgeContentHost string,
 	renderAgentManager *render.RenderAgentManager,
 	sourceAssetStorageManager common.SourceAssetStorageManager,
@@ -33,7 +34,7 @@ func NewSimpleBlueprint(
 	placeholderManager common.PlaceholderManager,
 	supportedFileTypes map[string]int64) (*simpleBlueprint, error) {
 	blueprint := new(simpleBlueprint)
-	blueprint.base = "/api"
+	blueprint.base = base
 	blueprint.edgeContentHost = edgeContentHost
 	blueprint.renderAgentManager = renderAgentManager
 	blueprint.sourceAssetStorageManager = sourceAssetStorageManager

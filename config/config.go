@@ -64,6 +64,7 @@ type DocumentRenderAgentAppConfig interface {
 type SimpleApiAppConfig interface {
 	Enabled() bool
 	EdgeBaseUrl() string
+	BaseUrl() string
 }
 
 type AssetApiAppConfig interface {

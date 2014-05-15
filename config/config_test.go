@@ -41,7 +41,7 @@ func initTempFileManager(path string) *tempFileManager {
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
 		"imageMagickRenderAgent": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 123456}},
 		"documentRenderAgent": {"enabled": true, "count": 16, "basePath": "./"},
-		"simpleApi": {"enabled": true, "edgeBaseUrl": "http://localhost:8080"},
+		"simpleApi": {"enabled": true, "baseUrl":"/api", "edgeBaseUrl": "http://localhost:8080"},
 		"assetApi": {"basePath": "./", "enabled": true},
 		"uploader": {"engine": "s3", "s3Key": "foo", "s3Secret": "bar", "s3Host": "baz", "s3Buckets": ["previewa", "previewb"]},
 		"downloader": {"basePath": "./", "tramEnabled": false}
