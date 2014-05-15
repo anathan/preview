@@ -18,10 +18,9 @@ type assetBlueprint struct {
 	templateManager              common.TemplateManager
 	placeholderManager           common.PlaceholderManager
 	s3Client                     common.S3Client
+	signatureManager             SignatureManager
 	localAssetStoragePath        string
 	templatesBySize              map[string]string
-
-	signatureManager SignatureManager
 
 	requestsMeter               metrics.Meter
 	malformedRequestsMeter      metrics.Meter
@@ -46,7 +45,8 @@ func NewAssetBlueprint(
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
 	placeholderManager common.PlaceholderManager,
-	s3Client common.S3Client) *assetBlueprint {
+	s3Client common.S3Client,
+	signatureManager SignatureManager) *assetBlueprint {
 
 	blueprint := new(assetBlueprint)
 	blueprint.base = "/asset"
@@ -56,8 +56,7 @@ func NewAssetBlueprint(
 	blueprint.placeholderManager = placeholderManager
 	blueprint.localAssetStoragePath = localAssetStoragePath
 	blueprint.s3Client = s3Client
-
-	blueprint.signatureManager = NewSignatureManager()
+	blueprint.signatureManager = signatureManager
 
 	blueprint.requestsMeter = metrics.NewMeter()
 	blueprint.malformedRequestsMeter = metrics.NewMeter()

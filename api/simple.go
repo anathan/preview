@@ -22,10 +22,8 @@ type simpleBlueprint struct {
 	generatedAssetStorageManager common.GeneratedAssetStorageManager
 	templateManager              common.TemplateManager
 	placeholderManager           common.PlaceholderManager
+	signatureManager             SignatureManager
 	supportedFileTypes           map[string]int64
-
-	signatureManager SignatureManager
-
 	generatePreviewRequestsMeter metrics.Meter
 	previewInfoRequestsMeter     metrics.Meter
 }
@@ -40,6 +38,7 @@ func NewSimpleBlueprint(
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
 	placeholderManager common.PlaceholderManager,
+	signatureManager SignatureManager,
 	supportedFileTypes map[string]int64) (*simpleBlueprint, error) {
 	blueprint := new(simpleBlueprint)
 	blueprint.base = base
@@ -50,8 +49,7 @@ func NewSimpleBlueprint(
 	blueprint.templateManager = templateManager
 	blueprint.placeholderManager = placeholderManager
 	blueprint.supportedFileTypes = supportedFileTypes
-
-	blueprint.signatureManager = NewSignatureManager()
+	blueprint.signatureManager = signatureManager
 
 	blueprint.generatePreviewRequestsMeter = metrics.NewMeter()
 	blueprint.previewInfoRequestsMeter = metrics.NewMeter()

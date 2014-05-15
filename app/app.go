@@ -26,6 +26,7 @@ type AppContext struct {
 	uploader                     common.Uploader
 	temporaryFileManager         common.TemporaryFileManager
 	placeholderManager           common.PlaceholderManager
+	signatureManager             api.SignatureManager
 	simpleBlueprint              api.Blueprint
 	assetBlueprint               api.Blueprint
 	staticBlueprint              api.Blueprint
@@ -205,17 +206,19 @@ func (app *AppContext) initApis() error {
 		allSupportedFileTypes[fileType] = maxFileSize
 	}
 
+	app.signatureManager = api.NewSignatureManager()
+
 	var err error
 
 	if app.appConfig.SimpleApi().Enabled() {
-		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.registry, app.appConfig.SimpleApi().BaseUrl(), app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, allSupportedFileTypes)
+		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.registry, app.appConfig.SimpleApi().BaseUrl(), app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.signatureManager, allSupportedFileTypes)
 		if err != nil {
 			return err
 		}
 		app.simpleBlueprint.ConfigureMartini(app.martiniClassic)
 	}
 
-	app.assetBlueprint = api.NewAssetBlueprint(app.registry, app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client())
+	app.assetBlueprint = api.NewAssetBlueprint(app.registry, app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client(), app.signatureManager)
 	app.assetBlueprint.ConfigureMartini(app.martiniClassic)
 
 	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
