@@ -61,7 +61,8 @@ The "imageMagickRenderAgent" group has the following keys:
 
 The "simpleApi" group has the following keys:
 
-* "enabled" - If enabled, the simple API will be available with the "/api" base URL on the listen port.
+* "enabled" - If enabled, the simple API will be available.
+* "baseUrl" - The url prefix to use, defaulting to "/api".
 * "edgeBaseUrl" - The base URL used when crafting links to renders and placeholders.
 
 The "assetApi" group has the following keys:
@@ -133,6 +134,7 @@ By default, the application will use the following configuration json:
    },
    "simpleApi":{
       "enabled":true,
+      "baseUrl": "/api",
       "edgeBaseUrl":"http://localhost:8080"
    },
    "assetApi":{
