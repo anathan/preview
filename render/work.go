@@ -118,20 +118,45 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 			if err != nil {
 				return
 			}
-			ga.Status = status
+			ga.Status = agentManager.canDispatch(ga.Id, status, template)
 			agentManager.generatedAssetStorageManager.Store(ga)
 		} else {
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
 				return
 			}
-			ga.Status = status
+			ga.Status = agentManager.canDispatch(ga.Id, status, template)
 			agentManager.generatedAssetStorageManager.Store(ga)
 		}
 	}
 }
 
-// TODO: Write this code.
+func (agentManager *RenderAgentManager) CreateDerivedWork(sourceAsset *common.SourceAsset, derivedSourceAsset *common.SourceAsset, templates []*common.Template, pages int) error {
+
+	placeholderSizes := make(map[string]string)
+	for _, template := range templates {
+		placeholderSize, err := common.GetFirstAttribute(template, common.TemplateAttributePlaceholderSize)
+		if err != nil {
+			return err
+		}
+		placeholderSizes[template.Id] = placeholderSize
+	}
+
+	for page := 0; page < pages; page++ {
+		for _, template := range templates {
+			placeholderSize := placeholderSizes[template.Id]
+			location := agentManager.uploader.Url(sourceAsset.Id, template.Id, placeholderSize, int32(page))
+			generatedAsset, err := common.NewGeneratedAssetFromSourceAsset(derivedSourceAsset, template, location)
+			if err == nil {
+				generatedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
+				generatedAsset.Status = agentManager.canDispatch(generatedAsset.Id, generatedAsset.Status, template)
+				agentManager.generatedAssetStorageManager.Store(generatedAsset)
+			}
+		}
+	}
+	return nil
+}
+
 func (agentManager *RenderAgentManager) whichRenderAgent(fileType string) ([]*common.Template, string, error) {
 	var templateIds []string
 	if fileType == "doc" || fileType == "docx" || fileType == "pptx" {
@@ -144,6 +169,37 @@ func (agentManager *RenderAgentManager) whichRenderAgent(fileType string) ([]*co
 		return nil, common.GeneratedAssetStatusFailed, err
 	}
 	return templates, common.DefaultGeneratedAssetStatus, nil
+}
+
+func (agentManager *RenderAgentManager) canDispatch(generatedAssetId, status string, template *common.Template) string {
+	agentManager.mu.Lock()
+	defer agentManager.mu.Unlock()
+	max, hasMax := agentManager.maxWork[template.Renderer]
+	if !hasMax {
+		return status
+	}
+	max = max * 4
+	activeWork, hasCount := agentManager.activeWork[template.Renderer]
+	if !hasCount {
+		return status
+	}
+	if len(activeWork) >= max {
+		return status
+	}
+
+	renderAgents, hasRenderAgent := agentManager.renderAgents[template.Renderer]
+	if !hasRenderAgent {
+		return status
+	}
+	if len(renderAgents) == 0 {
+		return status
+	}
+	renderAgent := renderAgents[0]
+
+	agentManager.activeWork[template.Renderer] = uniqueListWith(agentManager.activeWork[template.Renderer], generatedAssetId)
+	renderAgent.Dispatch() <- generatedAssetId
+
+	return common.GeneratedAssetStatusScheduled
 }
 
 func (agentManager *RenderAgentManager) AddListener(listener RenderStatusChannel) {
@@ -181,7 +237,7 @@ func (agentManager *RenderAgentManager) AddImageMagickRenderAgent(downloader com
 }
 
 func (agentManager *RenderAgentManager) AddDocumentRenderAgent(downloader common.Downloader, uploader common.Uploader, docCachePath string, maxWorkIncrease int) RenderAgent {
-	renderAgent := newDocumentRenderAgent(agentManager.documentMetrics, agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, docCachePath, agentManager.workChannels[common.RenderAgentDocument])
+	renderAgent := newDocumentRenderAgent(agentManager.documentMetrics, agentManager, agentManager.sourceAssetStorageManager, agentManager.generatedAssetStorageManager, agentManager.templateManager, agentManager.temporaryFileManager, downloader, uploader, docCachePath, agentManager.workChannels[common.RenderAgentDocument])
 	renderAgent.AddStatusListener(agentManager.workStatus)
 	agentManager.AddRenderAgent(common.RenderAgentDocument, renderAgent, maxWorkIncrease)
 	return renderAgent
@@ -213,7 +269,6 @@ func (agentManager *RenderAgentManager) run() {
 		select {
 		case ch, ok := <-agentManager.stop:
 			{
-				log.Println("Stopping")
 				if !ok {
 					return
 				}
@@ -251,7 +306,6 @@ func (agentManager *RenderAgentManager) dispatchMoreWork() {
 					generatedAsset.Status = common.GeneratedAssetStatusScheduled
 					err := agentManager.generatedAssetStorageManager.Update(generatedAsset)
 					if err == nil {
-						log.Println("Dispatching", generatedAsset.Id, "to work for", name)
 						agentManager.activeWork[name] = uniqueListWith(agentManager.activeWork[name], generatedAsset.Id)
 						renderAgent.Dispatch() <- generatedAsset.Id
 					}
@@ -271,7 +325,6 @@ func (agentManager *RenderAgentManager) handleStatus(renderStatus RenderStatus) 
 			agentManager.activeWork[renderStatus.Service] = listWithout(activeWork, renderStatus.GeneratedAssetId)
 		}
 	}
-	log.Println("active work for", renderStatus.Service, "is:", agentManager.activeWork[renderStatus.Service])
 }
 
 func (agentManager *RenderAgentManager) workToDispatchCount(name string) int {

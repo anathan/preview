@@ -26,6 +26,7 @@ type documentRenderAgent struct {
 	workChannel          RenderAgentWorkChannel
 	statusListeners      []RenderStatusChannel
 	temporaryFileManager common.TemporaryFileManager
+	agentManager         *RenderAgentManager
 	tempFileBasePath     string
 	stop                 chan (chan bool)
 }
@@ -41,6 +42,7 @@ type documentRenderAgentMetrics struct {
 
 func newDocumentRenderAgent(
 	metrics *documentRenderAgentMetrics,
+	agentManager *RenderAgentManager,
 	sasm common.SourceAssetStorageManager,
 	gasm common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
@@ -52,6 +54,7 @@ func newDocumentRenderAgent(
 
 	renderAgent := new(documentRenderAgent)
 	renderAgent.metrics = metrics
+	renderAgent.agentManager = agentManager
 	renderAgent.sasm = sasm
 	renderAgent.gasm = gasm
 	renderAgent.templateManager = templateManager
@@ -255,27 +258,31 @@ func (renderAgent *documentRenderAgent) renderGeneratedAsset(id string) {
 		return
 	}
 
-	// TODO: Have the new source asset and generated assets be created in batch in the storage managers.
-	for page := 0; page < pages; page++ {
-		for _, legacyTemplate := range legacyDefaultTemplates {
-			// TODO: This can be put into a small lookup table create/set at the time of structure init.
-			placeholderSize, err := common.GetFirstAttribute(legacyTemplate, common.TemplateAttributePlaceholderSize)
-			if err != nil {
-				statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
-				return
+	renderAgent.agentManager.CreateDerivedWork(sourceAsset, pdfSourceAsset, legacyDefaultTemplates, pages)
+
+	/*
+		// TODO: Have the new source asset and generated assets be created in batch in the storage managers.
+		for page := 0; page < pages; page++ {
+			for _, legacyTemplate := range legacyDefaultTemplates {
+				// TODO: This can be put into a small lookup table create/set at the time of structure init.
+				placeholderSize, err := common.GetFirstAttribute(legacyTemplate, common.TemplateAttributePlaceholderSize)
+				if err != nil {
+					statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+					return
+				}
+				// TODO: Update simple blueprint and image magick render agent to use this url structure.
+				location := renderAgent.uploader.Url(sourceAsset.Id, legacyTemplate.Id, placeholderSize, int32(page))
+				pdfGeneratedAsset, err := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
+				if err != nil {
+					statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
+					return
+				}
+				pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
+				log.Println("pdfGeneratedAsset", pdfGeneratedAsset)
+				renderAgent.gasm.Store(pdfGeneratedAsset)
 			}
-			// TODO: Update simple blueprint and image magick render agent to use this url structure.
-			location := renderAgent.uploader.Url(sourceAsset.Id, legacyTemplate.Id, placeholderSize, int32(page))
-			pdfGeneratedAsset, err := common.NewGeneratedAssetFromSourceAsset(pdfSourceAsset, legacyTemplate, location)
-			if err != nil {
-				statusCallback <- generatedAssetUpdate{common.NewGeneratedAssetError(common.ErrorNotImplemented), nil}
-				return
-			}
-			pdfGeneratedAsset.AddAttribute(common.GeneratedAssetAttributePage, []string{strconv.Itoa(page)})
-			log.Println("pdfGeneratedAsset", pdfGeneratedAsset)
-			renderAgent.gasm.Store(pdfGeneratedAsset)
 		}
-	}
+	*/
 
 	statusCallback <- generatedAssetUpdate{common.GeneratedAssetStatusComplete, nil}
 }
