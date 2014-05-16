@@ -101,6 +101,7 @@ func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http
 
 	splitIndex := len(blueprint.base + "/")
 	parts := strings.Split(req.URL.Path[splitIndex:], "/")
+	log.Println("parts", parts)
 
 	if len(parts) != 3 {
 		blueprint.malformedRequestsMeter.Mark(1)
@@ -158,8 +159,11 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize, page string) 
 	templateId, hasTemplateId := blueprint.templatesBySize[placeholderSize]
 	if hasTemplateId {
 		for _, generatedAsset := range generatedAssets {
-			pageVal, err := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
-			pageMatch := err == nil && pageVal == page
+			pageVal, _ := common.GetFirstAttribute(generatedAsset, common.GeneratedAssetAttributePage)
+			if len(pageVal) == 0 {
+				pageVal = "0"
+			}
+			pageMatch := pageVal == page
 			if generatedAsset.TemplateId == templateId && pageMatch {
 				if strings.HasPrefix(generatedAsset.Location, "local://") {
 					fullPath := filepath.Join(blueprint.localAssetStoragePath, fileId, placeholderSize, page)
