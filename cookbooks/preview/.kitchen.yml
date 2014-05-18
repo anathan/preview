@@ -1,0 +1,42 @@
+---
+driver:
+  name: vagrant
+
+provisioner:
+  name: chef_solo
+
+platforms:
+  - name: ubuntu-12.04
+    driver:
+      network:
+        - ["private_network", {ip: "10.10.12.5"}]
+  - name: ubuntu-13.10
+    driver:
+      network:
+        - ["private_network", {ip: "10.10.12.5"}]
+  - name: centos-6.5
+    driver:
+      network:
+        - ["private_network", {ip: "10.10.12.5"}]
+  - name: centos-5.8
+    driver:
+      box_url: https://dl.dropbox.com/u/17738575/CentOS-5.8-x86_64.box
+      network:
+        - ["private_network", {ip: "10.10.12.5"}]
+
+suites:
+  - name: default
+    run_list:
+      - recipe[preview::default]
+      - recipe[preview::deploy]
+    attributes:
+    excludes:
+      - ubuntu-12.04
+      - ubuntu-13.10
+  - name: build
+    run_list:
+      - recipe[preview::build]
+      - recipe[preview::default]
+    attributes:
+      preview:
+        install_type: 'none'

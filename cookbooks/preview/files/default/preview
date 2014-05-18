@@ -1,0 +1,77 @@
+#!/bin/sh
+#
+# preview - this script starts and stops the preview daemon
+#
+# chkconfig:   2345 20 80
+# description: Preview is a preview image daemon.
+# processname: preview
+# config:      /etc/preview.config
+# config:      /etc/sysconfig/preview
+# pidfile:     /var/run/preview.pid
+ 
+# Source function library.
+[ -f /etc/rc.d/init.d/functions ] && . /etc/rc.d/init.d/functions
+ 
+# Source networking configuration.
+[ -f /etc/sysconfig/network ] && . /etc/sysconfig/network
+ 
+# Check that networking is up.
+[ "$NETWORKING" = "no" ] && exit 0
+ 
+preview="/home/preview/preview"
+prog=$(basename $preview)
+ 
+PREVIEW_CONF_FILE="/etc/preview.conf"
+ 
+[ -f /etc/sysconfig/preview ] && . /etc/sysconfig/preview
+ 
+start() {
+    [ -x $preview ] || exit 5
+    [ -f $PREVIEW_CONF_FILE ] || exit 6
+    echo -n $"Starting $prog: "
+    daemon $preview --config $PREVIEW_CONF_FILE > /var/log/preview.log 2>&1 &
+    retval=$?
+    echo
+    return $retval
+}
+ 
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $prog
+    retval=$?
+    echo
+    return $retval
+}
+ 
+restart() {
+    stop
+    start
+}
+ 
+rh_status() {
+    status $prog
+}
+ 
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+ 
+case "$1" in
+    start)
+        rh_status_q && exit 0
+        $1
+        ;;
+    stop)
+        rh_status_q || exit 0
+        $1
+        ;;
+    restart)
+        $1
+        ;;
+    status)
+        rh_status
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart}"
+        exit 2
+esac

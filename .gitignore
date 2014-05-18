@@ -21,13 +21,15 @@ _testmain.go
 
 *.exe
 *.test
-preview
 .DS_Store
+
+.cache
+.vendor
+preview-*.json
 
 # test data
 test-data/placeholders/
 tmp/
-*-test.json
 
 # Chef stuff
 .vagrant
