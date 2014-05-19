@@ -178,7 +178,10 @@ func (blueprint *simpleBlueprint) parseFileIds(req *http.Request) []string {
 	url := req.URL.Path
 	index := len(blueprint.buildUrl("/v1/preview/"))
 	if len(url) > index {
-		results = append(results, url[index:])
+		fileIds := strings.Split(url[index:], ",")
+		for _, fileId := range fileIds {
+			results = append(results, fileId)
+		}
 	}
 
 	// NKG: Pull any file ids from the query string parameters.
