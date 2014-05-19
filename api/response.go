@@ -2,7 +2,7 @@ package api
 
 type previewInfoCollection struct {
 	FileId string     `json:"file_id"`
-	Page   int32      `json:"page"`
+	Page   int32      `json:"-"`
 	Jumbo  *imageInfo `json:"jumbo"`
 	Large  *imageInfo `json:"large"`
 	Medium *imageInfo `json:"medium"`
@@ -16,7 +16,7 @@ type imageInfo struct {
 	Expires       int64  `json:"expires"`
 	IsFinal       bool   `json:"isFinal"`
 	IsPlaceholder bool   `json:"isPlaceholder"`
-	Page          int32  `json:"page"`
+	Page          int32  `json:"-"`
 }
 
 type previewInfoResponse struct {
