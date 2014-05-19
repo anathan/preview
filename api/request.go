@@ -56,7 +56,7 @@ func newGeneratePreviewRequestFromJson(body string) ([]*generatePreviewRequest, 
 			Id          string `json:"file_id"`
 			RequestType string `json:"type"`
 			Url         string `json:"url"`
-			Size        int64  `json:"size"`
+			Size        string `json:"size"`
 		} `json:"files"`
 	}
 	err := json.Unmarshal([]byte(body), &data)
@@ -69,7 +69,11 @@ func newGeneratePreviewRequestFromJson(body string) ([]*generatePreviewRequest, 
 		gpr := new(generatePreviewRequest)
 		gpr.id = file.Id
 		gpr.requestType = file.RequestType
-		gpr.size = file.Size
+		sizeValue, err := strconv.ParseInt(file.Size, 10, 64)
+		if err != nil {
+			return nil, common.ErrorMissingFieldSize
+		}
+		gpr.size = sizeValue
 		gpr.url = file.Url
 		gprs = append(gprs, gpr)
 	}

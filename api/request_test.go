@@ -56,13 +56,13 @@ func TestJsonParsing(t *testing.T) {
         {
             "file_id": "abcd1234",
             "url": "http://ngerakines.me/resume.pdf",
-            "size": 12345,
+            "size": "12345",
             "type": "pdf"
         },
         {
             "file_id": "abcd1235",
             "url": "http://ngerakines.me/ngerakines.png",
-            "size": 12346,
+            "size": "12346",
             "type": "png"
         }
     ]
@@ -73,6 +73,18 @@ func TestJsonParsing(t *testing.T) {
 		return
 	}
 	if len(gprs) != 2 {
+		t.Error("Expected 2 generate preview requests but got", len(gprs))
+	}
+}
+
+func TestJsonParsingExampleA(t *testing.T) {
+	example := `{"version":1,"files":[{"file_id":"a6270b69-10b7-4649-ac25-505df3524194","batch_id":"113930","url":"https://pat/to/file","size":"879394","type":"jpg","expiration_time":null}]}`
+	gprs, err := newGeneratePreviewRequestFromJson(example)
+	if err != nil {
+		t.Error("Unexpected error parsing json:", err)
+		return
+	}
+	if len(gprs) != 1 {
 		t.Error("Expected one generate preview request but got", len(gprs))
 	}
 }

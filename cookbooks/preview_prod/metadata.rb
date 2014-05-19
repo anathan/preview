@@ -10,6 +10,9 @@ depends 'preview'
 
 supports 'centos'
 
+recipe 'preview_prod::node', 'Configures and prepares a preview application node.'
+recipe 'preview_prod::storage', 'Configures and prepares a storage node.'
+
 attribute 'preview_prod/node_id',
   :display_name => 'The id of the preview node.',
   :required => 'required',
