@@ -3,11 +3,10 @@ require 'chefspec/berkshelf'
 ChefSpec::Coverage.start!
 
 platforms = {
-  # 'ubuntu' => ['12.04', '13.10'],
   'centos' => ['5.9', '6.5']
 }
 
-describe 'preview::build' do
+describe 'preview_build::default' do
 
   platforms.each do |platform_name, platform_versions|
 
@@ -16,7 +15,7 @@ describe 'preview::build' do
       context "on #{platform_name} #{platform_version}" do
 
         let(:chef_run) do
-          ChefSpec::Runner.new(platform: platform_name, version: platform_version).converge('preview::build')
+          ChefSpec::Runner.new(platform: platform_name, version: platform_version).converge('preview_build::default')
         end
 
         before do

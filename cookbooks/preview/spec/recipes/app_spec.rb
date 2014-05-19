@@ -3,8 +3,7 @@ require 'chefspec/berkshelf'
 ChefSpec::Coverage.start!
 
 platforms = {
-  # 'ubuntu' => ['12.04', '13.10'],
-  'centos' => ['5.9', '6.5']
+  'centos' => ['5.9']
 }
 
 describe 'preview::app' do
@@ -31,19 +30,12 @@ describe 'preview::app' do
           expect(chef_run).to create_group('preview')
         end
 
-        it 'installs required packages' do
-          expect(chef_run).to install_package('curl')
-          expect(chef_run).to install_package('unzip')
+        it 'prepares the preview service' do
+          expect(chef_run).to create_cookbook_file('/etc/init.d/preview')
         end
 
         it 'places configuration' do
           expect(chef_run).to create_template('/etc/preview.conf')
-        end
-
-        it 'installs required render agent packages' do
-          expect(chef_run).to install_package('ImageMagick')
-          expect(chef_run).to install_package('createrepo')
-          expect(chef_run).to install_yum_package('libreoffice4.2-calc')
         end
 
       end
@@ -71,10 +63,7 @@ describe 'preview::app' do
         end
 
         it 'installs the preview archive and unpacks it' do
-          expect(chef_run).to create_remote_file('/var/chef/cache/preview.zip')
-          expect(chef_run).to run_bash('extract_app')
-          expect(chef_run).to run_execute('chown -R preview:preview /home/preview/')
-          expect(chef_run).to create_file('/home/preview/preview')
+
         end
 
       end

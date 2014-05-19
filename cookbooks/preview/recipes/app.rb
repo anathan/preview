@@ -28,12 +28,56 @@ group 'preview' do
   action :create
 end
 
-package 'unzip' do
-	action :install
+preview_packages = %w{unzip curl ImageMagick poppler-utils createrepo}
+
+preview_packages.each do |pkg|
+    yum_package pkg do
+      action :install
+    end
 end
 
-package 'curl' do
-  action :install
+remote_file "#{Chef::Config[:file_cache_path]}/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz" do
+  source "http://download.documentfoundation.org/libreoffice/stable/4.2.4/rpm/x86_64/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz"
+end
+
+directory '/opt/yum/libreoffice/' do
+  owner 'root'
+  group 'root'
+  recursive true
+  mode 00644
+  action :create
+end
+
+bash 'unpack libreoffice' do
+  cwd '/opt/yum/libreoffice/'
+  code <<-EOH
+    tar zxvf #{Chef::Config[:file_cache_path]}/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz
+    createrepo .
+    EOH
+end
+
+yum_repository 'libreoffice-local' do
+  description 'libreoffice-local'
+  baseurl 'file:///opt/yum/libreoffice/'
+  gpgcheck false
+  enabled true
+  action :create
+end
+
+execute 'yum clean all'
+execute 'yum -y install libreoffice4.2*'
+execute 'yum -y install libobasis4.2*'
+
+link '/usr/bin/soffice' do
+  to '/opt/libreoffice4.2/program/soffice.bin'
+end
+
+template '/etc/preview.conf' do
+  source 'preview.conf.erb'
+  mode 0640
+  group 'preview'
+  owner 'preview'
+  variables(:json => JSON.pretty_generate(node[:preview][:config].to_hash))
 end
 
 case node[:preview][:install_type]
@@ -60,64 +104,14 @@ when 'archive'
   end
 end
 
-template '/etc/preview.conf' do
-  source 'preview.conf.erb'
-  mode 0640
-  group 'preview'
-  owner 'preview'
-  variables(:json => JSON.pretty_generate(node[:preview][:config].to_hash))
+cookbook_file '/etc/init.d/preview' do
+  source 'preview'
+  mode 00777
+  owner 'root'
+  group 'root'
 end
 
-case node['platform_family']
-when 'rhel'
-
-  package 'ImageMagick'
-
-  remote_file "#{Chef::Config[:file_cache_path]}/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz" do
-    source "http://download.documentfoundation.org/libreoffice/stable/4.2.4/rpm/x86_64/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz"
-  end
-
-  directory '/opt/yum/libreoffice/' do
-    owner 'root'
-    group 'root'
-    recursive true
-    mode 00644
-    action :create
-  end
-
-  package 'createrepo'
-
-  bash 'unpack libreoffice' do
-    cwd '/opt/yum/libreoffice/'
-    code <<-EOH
-      tar zxvf #{Chef::Config[:file_cache_path]}/LibreOffice_4.2.4_Linux_x86-64_rpm.tar.gz
-      createrepo .
-      EOH
-  end
-
-  yum_repository 'libreoffice-local' do
-    description 'libreoffice-local'
-    baseurl 'file:///opt/yum/libreoffice/'
-    gpgcheck false
-    enabled true
-    action :create
-  end
-
-  yum_package 'libreoffice4.2-calc' do
-    action :install
-    flush_cache [:before]
-  end
-
-  %w{libreoffice4.2-impress libreoffice4.2-math libreoffice4.2-writer poppler-utils}.each do |pkg|
-      yum_package pkg do
-        action :install
-      end
-  end
-
-  link '/usr/bin/soffice' do
-    to '/opt/libreoffice4.2/program/soffice.bin'
-  end
-
-when 'debian', 'mac_os_x'
-  package 'imagemagick'
+service 'preview' do
+  provider Chef::Provider::Service::Init
+  action [:start]
 end
