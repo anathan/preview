@@ -61,8 +61,10 @@ func NewSimpleBlueprint(
 
 func (blueprint *simpleBlueprint) ConfigureMartini(m *martini.ClassicMartini) error {
 	m.Put(blueprint.buildUrl("/v1/preview"), blueprint.GeneratePreviewHandler)
+	m.Put(blueprint.buildUrl("/v1/preview/"), blueprint.GeneratePreviewHandler)
 	m.Put(blueprint.buildUrl("/v1/preview/:fileid"), blueprint.GeneratePreviewHandler)
 	m.Get(blueprint.buildUrl("/v1/preview"), blueprint.PreviewInfoHandler)
+	m.Get(blueprint.buildUrl("/v1/preview/"), blueprint.PreviewInfoHandler)
 	m.Get(blueprint.buildUrl("/v1/preview/:fileid"), blueprint.PreviewInfoHandler)
 	return nil
 }
