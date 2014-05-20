@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
 type TemporaryFile interface {
@@ -38,7 +39,10 @@ func (tf *defaultTemporaryFile) Path() string {
 }
 
 func (tf *defaultTemporaryFile) Release() {
-	tf.tfm.Notify(tf.path)
+	go func() {
+		time.Sleep(1 * time.Minute)
+		tf.tfm.Notify(tf.path)
+	}()
 }
 
 func (tfm *defaultTemporaryFileManager) Notify(path string) {
