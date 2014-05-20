@@ -9,7 +9,6 @@ import (
 
 type CassandraManager struct {
 	cluster *gocql.ClusterConfig
-	session *gocql.Session
 }
 
 /*
@@ -53,16 +52,6 @@ func NewCassandraManager(hosts []string, keyspace string) (*CassandraManager, er
 	cm.cluster.Keyspace = keyspace
 	cm.cluster.CQLVersion = "3.1.1"
 
-	log.Println("Creating cassandra cluster", cm.cluster)
-
-	session, err := cm.cluster.CreateSession()
-	if err != nil {
-		log.Println("Error creating cassasndra session:", err)
-		return nil, err
-	}
-
-	cm.session = session
-
 	return cm, nil
 }
 
@@ -83,16 +72,7 @@ func NewCassandraGeneratedAssetStorageManager(cm *CassandraManager, templateMana
 	return cgasm, nil
 }
 
-func (cm *CassandraManager) Session() *gocql.Session {
-	return cm.session
-}
-
 func (cm *CassandraManager) Stop() {
-	if cm.session != nil {
-		if !cm.session.Closed() {
-			cm.session.Close()
-		}
-	}
 }
 
 func (sasm *cassandraSourceAssetStorageManager) Store(sourceAsset *SourceAsset) error {
@@ -104,7 +84,13 @@ func (sasm *cassandraSourceAssetStorageManager) Store(sourceAsset *SourceAsset) 
 		log.Println("Error serializing source asset:", err)
 		return err
 	}
-	err = sasm.cassandraManager.Session().Query(`INSERT INTO `+sasm.keyspace+`.source_assets (id, type, message) VALUES (?, ?, ?)`, sourceAsset.Id, sourceAsset.IdType, payload).Exec()
+	session, err := sasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	err = session.Query(`INSERT INTO `+sasm.keyspace+`.source_assets (id, type, message) VALUES (?, ?, ?)`, sourceAsset.Id, sourceAsset.IdType, payload).Exec()
 	if err != nil {
 		log.Println("Error persisting source asset:", err)
 		return err
@@ -116,9 +102,15 @@ func (sasm *cassandraSourceAssetStorageManager) Store(sourceAsset *SourceAsset) 
 func (sasm *cassandraSourceAssetStorageManager) FindBySourceAssetId(id string) ([]*SourceAsset, error) {
 	results := make([]*SourceAsset, 0, 0)
 
+	session, err := sasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
 	query := `SELECT id, message FROM ` + sasm.keyspace + `.source_assets WHERE id = ?`
 	log.Println("Executing query", query, "with", id)
-	iter := sasm.cassandraManager.Session().Query(`SELECT id, message FROM `+sasm.keyspace+`.source_assets WHERE id = ?`, id).Consistency(gocql.One).Iter()
+	iter := session.Query(`SELECT id, message FROM `+sasm.keyspace+`.source_assets WHERE id = ?`, id).Consistency(gocql.One).Iter()
 	var sourceAssetId string
 	var message []byte
 	for iter.Scan(&sourceAssetId, &message) {
@@ -146,7 +138,13 @@ func (gasm *cassandraGeneratedAssetStorageManager) Store(generatedAsset *Generat
 
 	log.Println("Storing generated asset", generatedAsset)
 
-	batch := gasm.cassandraManager.Session().NewBatch(gocql.UnloggedBatch)
+	session, err := gasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	batch := session.NewBatch(gocql.UnloggedBatch)
 	query1 := `INSERT INTO ` + gasm.keyspace + `.generated_assets (id, source, status, template_id, message) VALUES (?, ?, ?, ?, ?)`
 	log.Println("Executing query", query1, "with", generatedAsset.Id, generatedAsset.SourceAssetId, generatedAsset.Status, generatedAsset.TemplateId, payload)
 	batch.Query(query1,
@@ -164,7 +162,7 @@ func (gasm *cassandraGeneratedAssetStorageManager) Store(generatedAsset *Generat
 	}
 
 	log.Println("Executing batch", batch)
-	err = gasm.cassandraManager.Session().ExecuteBatch(batch)
+	err = session.ExecuteBatch(batch)
 	log.Println("executed batch")
 	if err != nil {
 		log.Println("Error executing batch:", err)
@@ -194,7 +192,13 @@ func (gasm *cassandraGeneratedAssetStorageManager) Update(generatedAsset *Genera
 		log.Println("Error serializing generated asset:", err)
 		return err
 	}
-	batch := gasm.cassandraManager.Session().NewBatch(gocql.UnloggedBatch)
+	session, err := gasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	batch := session.NewBatch(gocql.UnloggedBatch)
 	batch.Query(`UPDATE `+gasm.keyspace+`.generated_assets SET status = ?, message = ? WHERE id = ?`, generatedAsset.Status, payload, generatedAsset.Id)
 
 	if generatedAsset.Status == GeneratedAssetStatusScheduled || generatedAsset.Status == GeneratedAssetStatusProcessing {
@@ -208,7 +212,7 @@ func (gasm *cassandraGeneratedAssetStorageManager) Update(generatedAsset *Genera
 	if generatedAsset.Status == GeneratedAssetStatusComplete || strings.HasPrefix(generatedAsset.Status, GeneratedAssetStatusFailed) {
 		batch.Query(`DELETE FROM `+gasm.keyspace+`.active_generated_assets WHERE id = ?`, generatedAsset.Id)
 	}
-	err = gasm.cassandraManager.Session().ExecuteBatch(batch)
+	err = session.ExecuteBatch(batch)
 	if err != nil {
 		log.Println("Error executing batch:", err)
 		return err
@@ -234,7 +238,13 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindByIds(ids []string) ([]*G
 func (gasm *cassandraGeneratedAssetStorageManager) FindBySourceAssetId(id string) ([]*GeneratedAsset, error) {
 	results := make([]*GeneratedAsset, 0, 0)
 
-	iter := gasm.cassandraManager.Session().Query(`SELECT id, message FROM `+gasm.keyspace+`.generated_assets WHERE source = ?`, id).Consistency(gocql.One).Iter()
+	session, err := gasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	iter := session.Query(`SELECT id, message FROM `+gasm.keyspace+`.generated_assets WHERE source = ?`, id).Consistency(gocql.One).Iter()
 	var generatedAssetId string
 	var message []byte
 	for iter.Scan(&generatedAssetId, &message) {
@@ -268,9 +278,15 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindWorkForService(serviceNam
 func (gasm *cassandraGeneratedAssetStorageManager) getWaitingAssets(group string, count int) ([]string, error) {
 	results := make([]string, 0, 0)
 
+	session, err := gasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
 	query := `SELECT id FROM ` + gasm.keyspace + `.waiting_generated_assets WHERE template = ?`
 	log.Println("Executing query", query, "with template", group)
-	iter := gasm.cassandraManager.Session().Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ?`, group).Consistency(gocql.One).Iter()
+	iter := session.Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ?`, group).Consistency(gocql.One).Iter()
 	var generatedAssetId string
 	for iter.Scan(&generatedAssetId) && len(results) <= count {
 		results = append(results, generatedAssetId)
@@ -290,7 +306,13 @@ func (gasm *cassandraGeneratedAssetStorageManager) getIds(ids []string) ([]*Gene
 		args[i] = interface{}(v)
 	}
 
-	iter := gasm.cassandraManager.Session().Query(`SELECT message FROM `+gasm.keyspace+`.generated_assets WHERE id in (`+buildIn(len(ids))+`)`, args...).Consistency(gocql.One).Iter()
+	session, err := gasm.cassandraManager.cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	iter := session.Query(`SELECT message FROM `+gasm.keyspace+`.generated_assets WHERE id in (`+buildIn(len(ids))+`)`, args...).Consistency(gocql.One).Iter()
 	var message []byte
 	for iter.Scan(&message) {
 		generatedAsset, err := newGeneratedAssetFromJson(message)
