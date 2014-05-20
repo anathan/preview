@@ -51,7 +51,7 @@ func TestBasicIntegration(t *testing.T) {
 	func() {
 		res := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", "/api/v1/preview/"+sourceAssetId, strings.NewReader(composeTextPayload("jpg", fileUrl("../test-data", "wallpaper-641916.jpg"), "252990")))
-		previewApp.martiniClassic.ServeHTTP(res, req)
+		previewApp.negroni.ServeHTTP(res, req)
 
 		if res.Code != 202 {
 			t.Errorf("Invalid response: %d", res.Code)
@@ -92,7 +92,7 @@ func TestBasicIntegration(t *testing.T) {
 	func() {
 		res := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/preview/"+sourceAssetId, nil)
-		previewApp.martiniClassic.ServeHTTP(res, req)
+		previewApp.negroni.ServeHTTP(res, req)
 
 		if res.Code != 200 {
 			t.Errorf("Invalid response: %d", res.Code)
@@ -116,7 +116,7 @@ func TestBasicIntegration(t *testing.T) {
 		func() {
 			res := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/local/"+sourceAssetId+"/"+placeholderSize, nil)
-			previewApp.martiniClassic.ServeHTTP(res, req)
+			previewApp.negroni.ServeHTTP(res, req)
 
 			if res.Code != 200 {
 				t.Errorf("Invalid response: %d", res.Code)
