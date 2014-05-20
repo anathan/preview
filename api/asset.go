@@ -1,11 +1,10 @@
 package api
 
 import (
-	"github.com/codegangsta/martini"
+	"github.com/bmizerany/pat"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/rcrowley/go-metrics"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -87,30 +86,18 @@ func NewAssetBlueprint(
 	return blueprint
 }
 
-// ConfigureMartini adds the assetBlueprint handlers/controllers to martini.
-func (blueprint *assetBlueprint) ConfigureMartini(m *martini.ClassicMartini) error {
-	m.Get(blueprint.base+"/**", blueprint.assetHandler)
-	return nil
+func (blueprint *assetBlueprint) AddRoutes(p *pat.PatternServeMux) {
+	p.Get(blueprint.base+"/:id/:template/:page", http.HandlerFunc(blueprint.assetHandler))
 }
 
 func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http.Request) {
 	blueprint.requestsMeter.Mark(1)
 
-	// NKG: Currently does nothing. This should have configuration to enabled failing requests that don't have signatures.
-	log.Println("signature is valid?", blueprint.signatureManager.IsValid(req.URL.String()))
+	assetId := req.URL.Query().Get(":id")
+	templateAlias := req.URL.Query().Get(":template")
+	page := req.URL.Query().Get(":page")
 
-	splitIndex := len(blueprint.base + "/")
-	parts := strings.Split(req.URL.Path[splitIndex:], "/")
-	log.Println("parts", parts)
-
-	if len(parts) != 3 {
-		blueprint.malformedRequestsMeter.Mark(1)
-		res.Header().Set("Content-Length", "0")
-		res.WriteHeader(404)
-		return
-	}
-
-	action, path := blueprint.getAsset(parts[0], parts[1], parts[2])
+	action, path := blueprint.getAsset(assetId, templateAlias, page)
 	switch action {
 	case assetActionServeFile:
 		{
@@ -132,9 +119,7 @@ func (blueprint *assetBlueprint) assetHandler(res http.ResponseWriter, req *http
 		}
 	}
 	blueprint.emptyRequestsMeter.Mark(1)
-	res.Header().Set("Content-Length", "0")
-	res.WriteHeader(404)
-	return
+	http.NotFound(res, req)
 }
 
 func (blueprint *assetBlueprint) splitS3Url(url string) (string, string) {

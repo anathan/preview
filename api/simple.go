@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/martini"
+	"github.com/bmizerany/pat"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/render"
 	"github.com/rcrowley/go-metrics"
@@ -59,14 +59,11 @@ func NewSimpleBlueprint(
 	return blueprint, nil
 }
 
-func (blueprint *simpleBlueprint) ConfigureMartini(m *martini.ClassicMartini) error {
-	m.Put(blueprint.buildUrl("/v1/preview"), blueprint.GeneratePreviewHandler)
-	m.Put(blueprint.buildUrl("/v1/preview/"), blueprint.GeneratePreviewHandler)
-	m.Put(blueprint.buildUrl("/v1/preview/:fileid"), blueprint.GeneratePreviewHandler)
-	m.Get(blueprint.buildUrl("/v1/preview"), blueprint.PreviewInfoHandler)
-	m.Get(blueprint.buildUrl("/v1/preview/"), blueprint.PreviewInfoHandler)
-	m.Get(blueprint.buildUrl("/v1/preview/:fileid"), blueprint.PreviewInfoHandler)
-	return nil
+func (blueprint *simpleBlueprint) AddRoutes(p *pat.PatternServeMux) {
+	p.Put(blueprint.buildUrl("/v1/preview/"), http.HandlerFunc(blueprint.GeneratePreviewHandler))
+	p.Put(blueprint.buildUrl("/v1/preview/:fileid"), http.HandlerFunc(blueprint.GeneratePreviewHandler))
+	p.Get(blueprint.buildUrl("/v1/preview/"), http.HandlerFunc(blueprint.PreviewInfoHandler))
+	p.Get(blueprint.buildUrl("/v1/preview/:fileid"), http.HandlerFunc(blueprint.PreviewInfoHandler))
 }
 
 func (blueprint *simpleBlueprint) buildUrl(path string) string {

@@ -1,7 +1,8 @@
 package app
 
 import (
-	"github.com/codegangsta/martini"
+	"github.com/bmizerany/pat"
+	"github.com/codegangsta/negroni"
 	"github.com/etix/stoppableListener"
 	"github.com/ngerakines/preview/api"
 	"github.com/ngerakines/preview/common"
@@ -29,10 +30,9 @@ type AppContext struct {
 	signatureManager             api.SignatureManager
 	simpleBlueprint              api.Blueprint
 	assetBlueprint               api.Blueprint
-	staticBlueprint              api.Blueprint
 	adminBlueprint               api.Blueprint
 	listener                     *stoppableListener.StoppableListener
-	martiniClassic               *martini.ClassicMartini
+	negroni                      *negroni.Negroni
 	cassandraManager             *common.CassandraManager
 }
 
@@ -72,7 +72,7 @@ func (app *AppContext) Start() {
 	}
 	app.listener = stoppableListener.Handle(httpListener)
 
-	http.Serve(app.listener, app.martiniClassic)
+	http.Serve(app.listener, app.negroni)
 
 	if app.listener.Stopped {
 		var alive int
@@ -199,8 +199,6 @@ func (app *AppContext) initRenderers() error {
 func (app *AppContext) initApis() error {
 	// NKG: This is where different APIs are configured and enabled.
 
-	app.martiniClassic = martini.Classic()
-
 	allSupportedFileTypes := make(map[string]int64)
 	for fileType, maxFileSize := range app.appConfig.ImageMagickRenderAgent().SupportedFileTypes() {
 		allSupportedFileTypes[fileType] = maxFileSize
@@ -210,22 +208,24 @@ func (app *AppContext) initApis() error {
 
 	var err error
 
+	p := pat.New()
+
 	if app.appConfig.SimpleApi().Enabled() {
 		app.simpleBlueprint, err = api.NewSimpleBlueprint(app.registry, app.appConfig.SimpleApi().BaseUrl(), app.appConfig.SimpleApi().EdgeBaseUrl(), app.agentManager, app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.signatureManager, allSupportedFileTypes)
 		if err != nil {
 			return err
 		}
-		app.simpleBlueprint.ConfigureMartini(app.martiniClassic)
+		app.simpleBlueprint.AddRoutes(p)
 	}
 
 	app.assetBlueprint = api.NewAssetBlueprint(app.registry, app.appConfig.Common().LocalAssetStoragePath(), app.sourceAssetStorageManager, app.generatedAssetStorageManager, app.templateManager, app.placeholderManager, app.buildS3Client(), app.signatureManager)
-	app.assetBlueprint.ConfigureMartini(app.martiniClassic)
-
-	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
-	app.staticBlueprint.ConfigureMartini(app.martiniClassic)
+	app.assetBlueprint.AddRoutes(p)
 
 	app.adminBlueprint = api.NewAdminBlueprint(app.registry, app.appConfig, app.placeholderManager, app.temporaryFileManager, app.agentManager)
-	app.adminBlueprint.ConfigureMartini(app.martiniClassic)
+	app.adminBlueprint.AddRoutes(p)
+
+	app.negroni = negroni.Classic()
+	app.negroni.UseHandler(p)
 
 	return nil
 }

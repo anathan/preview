@@ -3,7 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/codegangsta/martini"
+	"github.com/bmizerany/pat"
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/config"
 	"github.com/ngerakines/preview/render"
@@ -60,15 +60,13 @@ func NewAdminBlueprint(registry metrics.Registry, appConfig config.AppConfig, pl
 	return blueprint
 }
 
-// ConfigureMartini adds the adminBlueprint handlers/controllers to martini.
-func (blueprint *adminBlueprint) ConfigureMartini(m *martini.ClassicMartini) error {
-	m.Get(blueprint.base+"/config", blueprint.configHandler)
-	m.Get(blueprint.base+"/placeholders", blueprint.placeholdersHandler)
-	m.Get(blueprint.base+"/temporaryFiles", blueprint.temporaryFilesHandler)
-	m.Get(blueprint.base+"/errors", blueprint.errorsHandler)
-	m.Get(blueprint.base+"/renderAgents", blueprint.renderAgentsHandler)
-	m.Get(blueprint.base+"/metrics", blueprint.metricsHandler)
-	return nil
+func (blueprint *adminBlueprint) AddRoutes(p *pat.PatternServeMux) {
+	p.Get(blueprint.base+"/config", http.HandlerFunc(blueprint.configHandler))
+	p.Get(blueprint.base+"/placeholders", http.HandlerFunc(blueprint.placeholdersHandler))
+	p.Get(blueprint.base+"/temporaryFiles", http.HandlerFunc(blueprint.temporaryFilesHandler))
+	p.Get(blueprint.base+"/errors", http.HandlerFunc(blueprint.errorsHandler))
+	p.Get(blueprint.base+"/renderAgents", http.HandlerFunc(blueprint.renderAgentsHandler))
+	p.Get(blueprint.base+"/metrics", http.HandlerFunc(blueprint.metricsHandler))
 }
 
 func (blueprint *adminBlueprint) configHandler(res http.ResponseWriter, req *http.Request) {
