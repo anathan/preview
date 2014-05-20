@@ -368,7 +368,7 @@ func (blueprint *simpleBlueprint) getPreviewImage(generatedAsset *common.Generat
 func (blueprint *simpleBlueprint) getPlaceholder(fileType, placeholderSize string, page int32) *imageInfo {
 	placeholder := blueprint.placeholderManager.Url(fileType, placeholderSize)
 	signedUrl, expires := blueprint.signUrl(blueprint.edgeContentHost + "/static" + placeholder.Url)
-	return &imageInfo{signedUrl, 200, 200, expires, true, false, page}
+	return &imageInfo{signedUrl, 200, 200, expires, false, true, page}
 }
 
 func (blueprint *simpleBlueprint) getFileType(sourceAssets []*common.SourceAsset) string {
