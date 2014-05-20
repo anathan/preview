@@ -31,6 +31,7 @@ type AppContext struct {
 	simpleBlueprint              api.Blueprint
 	assetBlueprint               api.Blueprint
 	adminBlueprint               api.Blueprint
+	staticBlueprint              api.Blueprint
 	listener                     *stoppableListener.StoppableListener
 	negroni                      *negroni.Negroni
 	cassandraManager             *common.CassandraManager
@@ -223,6 +224,9 @@ func (app *AppContext) initApis() error {
 
 	app.adminBlueprint = api.NewAdminBlueprint(app.registry, app.appConfig, app.placeholderManager, app.temporaryFileManager, app.agentManager)
 	app.adminBlueprint.AddRoutes(p)
+
+	app.staticBlueprint = api.NewStaticBlueprint(app.placeholderManager)
+	app.staticBlueprint.AddRoutes(p)
 
 	app.negroni = negroni.Classic()
 	app.negroni.UseHandler(p)

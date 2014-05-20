@@ -5,10 +5,16 @@ import (
 	"github.com/ngerakines/preview/common"
 	"github.com/ngerakines/preview/util"
 	"github.com/rcrowley/go-metrics"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 )
+
+type staticBlueprint struct {
+	base               string
+	placeholderManager common.PlaceholderManager
+}
 
 type assetBlueprint struct {
 	base                         string
@@ -172,4 +178,31 @@ func (blueprint *assetBlueprint) getAsset(fileId, placeholderSize, page string) 
 	}
 
 	return assetAction404, ""
+}
+
+func NewStaticBlueprint(placeholderManager common.PlaceholderManager) *staticBlueprint {
+	blueprint := new(staticBlueprint)
+	blueprint.base = "/static"
+	blueprint.placeholderManager = placeholderManager
+	return blueprint
+}
+
+func (blueprint *staticBlueprint) AddRoutes(p *pat.PatternServeMux) {
+	p.Get(blueprint.base+"/:fileType/:placeholderSize", http.HandlerFunc(blueprint.RequestHandler))
+}
+
+func (blueprint *staticBlueprint) RequestHandler(res http.ResponseWriter, req *http.Request) {
+	parts := strings.Split(req.URL.Path[len(blueprint.base+"/"):], "/")
+	log.Println("parts", parts)
+
+	if len(parts) == 2 {
+		placeholder := blueprint.placeholderManager.Url(parts[0], parts[1])
+		if placeholder.Path != "" {
+			http.ServeFile(res, req, placeholder.Path)
+			return
+		}
+	}
+
+	res.Header().Set("Content-Length", "0")
+	res.WriteHeader(500)
 }
