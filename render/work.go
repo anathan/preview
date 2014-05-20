@@ -108,6 +108,7 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 
 	templates, status, err := agentManager.whichRenderAgent(fileType)
 	if err != nil {
+		log.Println("error determining which render agent to use", err)
 		return
 	}
 	for _, template := range templates {
@@ -116,6 +117,7 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 		if err == nil {
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
+				log.Println("error creating generated asset from source asset", err)
 				return
 			}
 			ga.Status = agentManager.canDispatch(ga.Id, status, template)
@@ -123,6 +125,7 @@ func (agentManager *RenderAgentManager) CreateWork(sourceAssetId, url, fileType 
 		} else {
 			ga, err := common.NewGeneratedAssetFromSourceAsset(sourceAsset, template, location)
 			if err != nil {
+				log.Println("error creating generated asset from source asset", err)
 				return
 			}
 			ga.Status = agentManager.canDispatch(ga.Id, status, template)
@@ -172,34 +175,38 @@ func (agentManager *RenderAgentManager) whichRenderAgent(fileType string) ([]*co
 }
 
 func (agentManager *RenderAgentManager) canDispatch(generatedAssetId, status string, template *common.Template) string {
-	agentManager.mu.Lock()
-	defer agentManager.mu.Unlock()
-	max, hasMax := agentManager.maxWork[template.Renderer]
-	if !hasMax {
-		return status
-	}
-	max = max * 4
-	activeWork, hasCount := agentManager.activeWork[template.Renderer]
-	if !hasCount {
-		return status
-	}
-	if len(activeWork) >= max {
-		return status
-	}
+	return status
 
-	renderAgents, hasRenderAgent := agentManager.renderAgents[template.Renderer]
-	if !hasRenderAgent {
-		return status
-	}
-	if len(renderAgents) == 0 {
-		return status
-	}
-	renderAgent := renderAgents[0]
+	/*
+		agentManager.mu.Lock()
+		defer agentManager.mu.Unlock()
+		max, hasMax := agentManager.maxWork[template.Renderer]
+		if !hasMax {
+			return status
+		}
+		max = max * 4
+		activeWork, hasCount := agentManager.activeWork[template.Renderer]
+		if !hasCount {
+			return status
+		}
+		if len(activeWork) >= max {
+			return status
+		}
 
-	agentManager.activeWork[template.Renderer] = uniqueListWith(agentManager.activeWork[template.Renderer], generatedAssetId)
-	renderAgent.Dispatch() <- generatedAssetId
+		renderAgents, hasRenderAgent := agentManager.renderAgents[template.Renderer]
+		if !hasRenderAgent {
+			return status
+		}
+		if len(renderAgents) == 0 {
+			return status
+		}
+		renderAgent := renderAgents[0]
 
-	return common.GeneratedAssetStatusScheduled
+		agentManager.activeWork[template.Renderer] = uniqueListWith(agentManager.activeWork[template.Renderer], generatedAssetId)
+		renderAgent.Dispatch() <- generatedAssetId
+
+		return common.GeneratedAssetStatusScheduled
+	*/
 }
 
 func (agentManager *RenderAgentManager) AddListener(listener RenderStatusChannel) {
@@ -295,13 +302,17 @@ func (agentManager *RenderAgentManager) dispatchMoreWork() {
 	agentManager.mu.Lock()
 	defer agentManager.mu.Unlock()
 
+	log.Println("About to look for work.")
 	for name, renderAgents := range agentManager.renderAgents {
+		log.Println("Looking for work for", name)
 		workCount := agentManager.workToDispatchCount(name)
 		rendererCount := len(renderAgents)
+		log.Println("workCount", workCount, "rendererCount", rendererCount)
 		if workCount > 0 && rendererCount > 0 {
 			renderAgent := renderAgents[0]
 			generatedAssets, err := agentManager.generatedAssetStorageManager.FindWorkForService(name, workCount)
 			if err == nil {
+				log.Println("Found", len(generatedAssets), "for", name)
 				for _, generatedAsset := range generatedAssets {
 					generatedAsset.Status = common.GeneratedAssetStatusScheduled
 					err := agentManager.generatedAssetStorageManager.Update(generatedAsset)
@@ -310,6 +321,8 @@ func (agentManager *RenderAgentManager) dispatchMoreWork() {
 						renderAgent.Dispatch() <- generatedAsset.Id
 					}
 				}
+			} else {
+				log.Println("Error getting generated assets", err)
 			}
 		}
 	}

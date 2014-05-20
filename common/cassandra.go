@@ -48,12 +48,16 @@ type cassandraGeneratedAssetStorageManager struct {
 func NewCassandraManager(hosts []string, keyspace string) (*CassandraManager, error) {
 	cm := new(CassandraManager)
 
-	cm.cluster = gocql.NewCluster(hosts...)
-	cm.cluster.Consistency = gocql.Any
+	cm.cluster = gocql.NewCluster("127.0.0.1:9042")
+	cm.cluster.Consistency = gocql.One
 	cm.cluster.Keyspace = keyspace
+	cm.cluster.CQLVersion = "3.1.1"
+
+	log.Println("Creating cassandra cluster", cm.cluster)
 
 	session, err := cm.cluster.CreateSession()
 	if err != nil {
+		log.Println("Error creating cassasndra session:", err)
 		return nil, err
 	}
 
@@ -92,6 +96,7 @@ func (cm *CassandraManager) Stop() {
 }
 
 func (sasm *cassandraSourceAssetStorageManager) Store(sourceAsset *SourceAsset) error {
+	log.Println("About to store sourceAsset", sourceAsset)
 	sourceAsset.CreatedBy = sasm.nodeId
 	sourceAsset.UpdatedBy = sasm.nodeId
 	payload, err := sourceAsset.Serialize()
@@ -111,6 +116,8 @@ func (sasm *cassandraSourceAssetStorageManager) Store(sourceAsset *SourceAsset) 
 func (sasm *cassandraSourceAssetStorageManager) FindBySourceAssetId(id string) ([]*SourceAsset, error) {
 	results := make([]*SourceAsset, 0, 0)
 
+	query := `SELECT id, message FROM ` + sasm.keyspace + `.source_assets WHERE id = ?`
+	log.Println("Executing query", query, "with", id)
 	iter := sasm.cassandraManager.Session().Query(`SELECT id, message FROM `+sasm.keyspace+`.source_assets WHERE id = ?`, id).Consistency(gocql.One).Iter()
 	var sourceAssetId string
 	var message []byte
@@ -128,6 +135,7 @@ func (sasm *cassandraSourceAssetStorageManager) FindBySourceAssetId(id string) (
 }
 
 func (gasm *cassandraGeneratedAssetStorageManager) Store(generatedAsset *GeneratedAsset) error {
+	log.Println("About to store generatedAsset", generatedAsset)
 	generatedAsset.CreatedBy = gasm.nodeId
 	generatedAsset.UpdatedBy = gasm.nodeId
 	payload, err := generatedAsset.Serialize()
@@ -139,19 +147,25 @@ func (gasm *cassandraGeneratedAssetStorageManager) Store(generatedAsset *Generat
 	log.Println("Storing generated asset", generatedAsset)
 
 	batch := gasm.cassandraManager.Session().NewBatch(gocql.UnloggedBatch)
-	batch.Query(`INSERT INTO `+gasm.keyspace+`.generated_assets (id, source, status, template_id, message) VALUES (?, ?, ?, ?, ?)`,
+	query1 := `INSERT INTO ` + gasm.keyspace + `.generated_assets (id, source, status, template_id, message) VALUES (?, ?, ?, ?, ?)`
+	log.Println("Executing query", query1, "with", generatedAsset.Id, generatedAsset.SourceAssetId, generatedAsset.Status, generatedAsset.TemplateId, payload)
+	batch.Query(query1,
 		generatedAsset.Id, generatedAsset.SourceAssetId, generatedAsset.Status, generatedAsset.TemplateId, payload)
 
 	if generatedAsset.Status == GeneratedAssetStatusWaiting {
+		log.Println("generated asset status is", GeneratedAssetStatusWaiting)
 		templateGroup, err := gasm.templateGroup(generatedAsset.TemplateId)
 		if err != nil {
+			log.Println("error getting template group", templateGroup)
 			return err
 		}
 		batch.Query(`INSERT INTO `+gasm.keyspace+`.waiting_generated_assets (id, source, template) VALUES (?, ?, ?)`,
 			generatedAsset.Id, generatedAsset.SourceAssetId+generatedAsset.SourceAssetType, templateGroup)
 	}
 
+	log.Println("Executing batch", batch)
 	err = gasm.cassandraManager.Session().ExecuteBatch(batch)
+	log.Println("executed batch")
 	if err != nil {
 		log.Println("Error executing batch:", err)
 		return err
@@ -239,10 +253,12 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindBySourceAssetId(id string
 func (gasm *cassandraGeneratedAssetStorageManager) FindWorkForService(serviceName string, workCount int) ([]*GeneratedAsset, error) {
 	templates, err := gasm.templateManager.FindByRenderService(serviceName)
 	if err != nil {
+		log.Println("error executing templateManager.FindByRenderService", err)
 		return nil, err
 	}
 	generatedAssetIds, err := gasm.getWaitingAssets(templates[0].Group, workCount)
 	if err != nil {
+		log.Println("error executing gasm.getWaitingAssets", err)
 		return nil, err
 	}
 
@@ -252,7 +268,9 @@ func (gasm *cassandraGeneratedAssetStorageManager) FindWorkForService(serviceNam
 func (gasm *cassandraGeneratedAssetStorageManager) getWaitingAssets(group string, count int) ([]string, error) {
 	results := make([]string, 0, 0)
 
-	iter := gasm.cassandraManager.Session().Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ?`, group).PageSize(count * 3).Consistency(gocql.One).Iter()
+	query := `SELECT id FROM ` + gasm.keyspace + `.waiting_generated_assets WHERE template = ?`
+	log.Println("Executing query", query, "with template", group)
+	iter := gasm.cassandraManager.Session().Query(`SELECT id FROM `+gasm.keyspace+`.waiting_generated_assets WHERE template = ?`, group).Consistency(gocql.One).Iter()
 	var generatedAssetId string
 	for iter.Scan(&generatedAssetId) && len(results) <= count {
 		results = append(results, generatedAssetId)
