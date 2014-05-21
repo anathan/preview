@@ -6,10 +6,7 @@ provisioner:
   name: chef_solo
 
 platforms:
-  - name: centos-6.4
-  - name: centos-5.8
-    driver:
-      box_url: https://dl.dropbox.com/u/17738575/CentOS-5.8-x86_64.box
+  - name: centos-6.5
 
 suites:
   - name: default

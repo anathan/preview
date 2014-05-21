@@ -9,5 +9,6 @@ version          '0.2.2'
 depends 'apt'
 depends 'yum'
 depends 'ark'
+depends 'build-essential', '~> 2.0'
 
 supports 'centos'

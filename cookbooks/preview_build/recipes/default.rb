@@ -25,7 +25,3 @@
 #
 
 include_recipe 'golang::default'
-
-# node.default['go']['packages'] = ['github.com/gpmgo/gopm']
-
-# include_recipe 'golang::packages'
