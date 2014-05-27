@@ -1,0 +1,34 @@
+---
+driver:
+  name: vagrant
+
+driver_config:
+  require_chef_omnibus: true
+  customize:
+    memory: 2048
+    cpus: 2
+    vram: 16
+
+provisioner:
+  name: chef_solo
+
+platforms:
+  - name: centos-6.5
+    driver:
+      require_chef_omnibus: true
+      network:
+        - ["private_network", {ip: "10.10.100.2"}]
+        - ["forwarded_port", {guest: 7000, host: 7000}]
+        - ["forwarded_port", {guest: 9160, host: 9160}]
+        - ["forwarded_port", {guest: 9042, host: 9042}]
+        - ["forwarded_port", {guest: 6050, host: 6050}]
+      synced_folders: 
+        - ["#{ENV['GOPATH']}", "/home/vagrant/go/"]
+
+suites:
+  - name: default
+    run_list:
+      - recipe[preview_build::default]
+      - recipe[preview_test::local]
+      - recipe[preview_test::storage]
+    attributes:

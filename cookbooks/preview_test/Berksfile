@@ -1,0 +1,6 @@
+site :opscode
+
+metadata
+
+cookbook 'preview_build', :path => '../preview_build/'
+cookbook 'cassandra', :github => 'michaelklishin/cassandra-chef-cookbook'
