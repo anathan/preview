@@ -24,6 +24,7 @@ type userCommonAppConfig struct {
 	placeholderGroups     map[string][]string
 	nodeId                string
 	localAssetStoragePath string
+	workDispatcherEnabled bool
 }
 
 type userHttpAppConfig struct {
@@ -167,6 +168,11 @@ func newUserCommonAppConfig(m map[string]interface{}) (CommonAppConfig, error) {
 	}
 
 	config.nodeId, err = parseString("common", "nodeId", data)
+	if err != nil {
+		return nil, err
+	}
+
+	config.workDispatcherEnabled, err = parseBool("common", "workDispatcherEnabled", data)
 	if err != nil {
 		return nil, err
 	}
@@ -551,4 +557,8 @@ func (c *userCommonAppConfig) PlaceholderBasePath() string {
 
 func (c *userCommonAppConfig) PlaceholderGroups() map[string][]string {
 	return c.placeholderGroups
+}
+
+func (c *userCommonAppConfig) WorkDispatcherEnabled() bool {
+	return c.workDispatcherEnabled
 }

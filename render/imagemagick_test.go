@@ -126,7 +126,7 @@ func setupTest(path string) (*RenderAgentManager, common.SourceAssetStorageManag
 	downloader := common.NewDownloader(path, path, tfm, false, []string{}, nil)
 	uploader := common.NewLocalUploader(path)
 	registry := metrics.NewRegistry()
-	rm := NewRenderAgentManager(registry, sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm, uploader)
+	rm := NewRenderAgentManager(registry, sourceAssetStorageManager, generatedAssetStorageManager, tm, tfm, uploader, true)
 
 	rm.AddImageMagickRenderAgent(downloader, uploader, 5)
 	rm.AddDocumentRenderAgent(downloader, uploader, filepath.Join(path, "doc-cache"), 5)

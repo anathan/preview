@@ -37,6 +37,7 @@ type CommonAppConfig interface {
 	PlaceholderGroups() map[string][]string
 	LocalAssetStoragePath() string
 	NodeId() string
+	WorkDispatcherEnabled() bool
 }
 
 type HttpAppConfig interface {

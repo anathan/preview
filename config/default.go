@@ -28,7 +28,8 @@ func buildDefaultConfig(basePathFunc basePath) (AppConfig, error) {
          "document":["pdf", "doc", "docx"]
       },
       "localAssetStoragePath":"` + basePathFunc("assets") + `",
-      "nodeId":"E876F147E331"
+      "nodeId":"E876F147E331",
+      "workDispatcherEnabled":true
    },
    "http":{
       "listen":":8080"

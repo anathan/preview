@@ -37,7 +37,7 @@ func initTempFileManager(path string) *tempFileManager {
 	fm.files = make(map[string]string)
 	fm.initFile("basic", `{
 		"http": {"listen": ":8081"},
-		"common": {"nodeId": "9D7DB7FC75B4", "placeholderBasePath": "./", "placeholderGroups": {"image": ["jpg"]}, "localAssetStoragePath":"./"},
+		"common": {"nodeId": "9D7DB7FC75B4", "placeholderBasePath": "./", "placeholderGroups": {"image": ["jpg"]}, "localAssetStoragePath":"./", "workDispatcherEnabled":true},
 		"storage": {"engine": "cassandra", "cassandraNodes": ["localhost"], "cassandraKeyspace": "preview"},
 		"imageMagickRenderAgent": {"enabled": true, "count": 16, "supportedFileTypes":{"jpg": 123456}},
 		"documentRenderAgent": {"enabled": true, "count": 16, "basePath": "./"},

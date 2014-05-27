@@ -37,7 +37,8 @@ func NewRenderAgentManager(
 	generatedAssetStorageManager common.GeneratedAssetStorageManager,
 	templateManager common.TemplateManager,
 	temporaryFileManager common.TemporaryFileManager,
-	uploader common.Uploader) *RenderAgentManager {
+	uploader common.Uploader,
+	workDispatcherEnabled bool) *RenderAgentManager {
 
 	agentManager := new(RenderAgentManager)
 	agentManager.sourceAssetStorageManager = sourceAssetStorageManager
@@ -61,7 +62,9 @@ func NewRenderAgentManager(
 	agentManager.imageMagickMetrics = newImageMagickRenderAgentMetrics(registry)
 
 	agentManager.stop = make(chan (chan bool))
-	go agentManager.run()
+	if workDispatcherEnabled {
+		go agentManager.run()
+	}
 
 	return agentManager
 }
