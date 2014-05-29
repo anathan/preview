@@ -7,9 +7,11 @@
 # This project and its contents are open source under the MIT license.
 #
 
+node.set["monit"]["reload_on_change"] = false
 
 include_recipe 'apt::default'
 include_recipe 'yum::default'
+include_recipe 'monit::default'
 
 require 'json'
 
@@ -114,4 +116,8 @@ end
 service 'preview' do
   provider Chef::Provider::Service::Init
   action [:start]
+end
+
+monit_monitrc 'preview' do
+  variables({ category: 'preview' })
 end

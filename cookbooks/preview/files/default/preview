@@ -30,6 +30,8 @@ start() {
     [ -f $PREVIEW_CONF_FILE ] || exit 6
     echo -n $"Starting $prog: "
     daemon $preview --config $PREVIEW_CONF_FILE > /var/log/preview.log 2>&1 &
+    PID=$!
+    echo $PID > /home/preview/preview.pid
     retval=$?
     echo
     return $retval

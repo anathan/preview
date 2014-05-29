@@ -1,0 +1,6 @@
+check process preview with pidfile /home/preview/preview.pid
+	start program = "/etc/init.d/preview start"
+	stop program = "/etc/init.d/preview stop"
+	if failed host localhost port <%= node[:preview][:port] %>
+        protocol HTTP request "/admin/metrics" then restart
+	if 5 restarts within 5 cycles then alert
