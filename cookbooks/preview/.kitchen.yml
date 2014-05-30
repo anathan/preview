@@ -11,6 +11,12 @@ platforms:
       network:
         - ["private_network", {ip: "10.10.12.5"}]
 
+  - name: ubuntu-12.04
+  - name: ubuntu-13.04
+  - name: ubuntu-14.04
+
+
+
 suites:
   - name: default
     run_list:
