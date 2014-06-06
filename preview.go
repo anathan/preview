@@ -5,14 +5,14 @@ import (
 	"github.com/ngerakines/preview/cli"
 	"os"
 	"os/signal"
-	"fmt"
+	"syscall"
 )
 
 func main() {
         c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
-	s := <-c
-	fmt.Println("Got signal:", s)
+	if signal.Notify(c, syscall.SIGTERM) {
+	   os.Exit(0)
+	}
         
 	usage := `Preview
 
